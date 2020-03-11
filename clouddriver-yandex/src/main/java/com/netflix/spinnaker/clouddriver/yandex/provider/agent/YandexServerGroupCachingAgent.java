@@ -39,6 +39,7 @@ import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerServiceOuterCl
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Splitter;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -652,7 +653,7 @@ public final class YandexServerGroupCachingAgent extends AbstractYandexCachingAg
   private ServerGroup.ImageSummary getImageSummary(
       InstanceGroup group, InstanceGroupOuterClass.AttachedDiskSpec diskSpec) {
     String imageId = diskSpec.getDiskSpec().getImageId();
-    if (imageId != null) {
+    if (!Strings.isNullOrEmpty(imageId)) {
       // todo: поменять на выгрузку из кеша
       Image image =
           getCredentials()
@@ -662,7 +663,7 @@ public final class YandexServerGroupCachingAgent extends AbstractYandexCachingAg
     }
 
     String snapshotId = diskSpec.getDiskSpec().getSnapshotId();
-    if (snapshotId != null) {
+    if (!Strings.isNullOrEmpty(snapshotId)) {
       Snapshot snapshot =
           getCredentials()
               .snapshotService()

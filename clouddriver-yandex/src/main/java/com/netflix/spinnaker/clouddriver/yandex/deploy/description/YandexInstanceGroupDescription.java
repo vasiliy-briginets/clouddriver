@@ -19,7 +19,6 @@ package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 import com.netflix.spinnaker.clouddriver.security.resources.CredentialsNameable;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudServerGroup;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import com.netflix.spinnaker.kork.artifacts.model.Artifact;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +27,7 @@ import lombok.Data;
 @Data
 public class YandexInstanceGroupDescription implements CredentialsNameable, Cloneable {
   private YandexCloudCredentials credentials;
+  private String freeFormDetails;
 
   private String name;
   private String description;
@@ -40,5 +40,4 @@ public class YandexInstanceGroupDescription implements CredentialsNameable, Clon
   private List<YandexCloudServerGroup.HealthCheckSpec> healthCheckSpecs;
   private YandexCloudServerGroup.InstanceTemplate instanceTemplate;
   private String serviceAccountId;
-  private Artifact imageArtifact;
 }

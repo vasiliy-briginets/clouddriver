@@ -17,30 +17,27 @@
 package com.netflix.spinnaker.clouddriver.yandex.deploy.converter;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.netflix.spinnaker.clouddriver.deploy.DeployAtomicOperation;
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation;
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperations;
 import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCredentialsSupport;
 import com.netflix.spinnaker.clouddriver.security.ProviderVersion;
 import com.netflix.spinnaker.clouddriver.yandex.YandexCloudOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexDeployGroupDescription;
+import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.YandexModifyInstanceGroupOperation;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import groovy.util.logging.Slf4j;
 import java.util.Map;
-import lombok.NoArgsConstructor;
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 import org.springframework.stereotype.Component;
 
-@YandexCloudOperation(AtomicOperations.CREATE_SERVER_GROUP)
+@YandexCloudOperation(AtomicOperations.UPDATE_LAUNCH_CONFIG)
 @Component
-@Slf4j
-@NoArgsConstructor
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class YandexDeployAtomicOperationConverter
+public class YandexModifyInstanceGroupOperationConverter
     extends AbstractAtomicOperationsCredentialsSupport {
+
   @Override
   public AtomicOperation convertOperation(Map input) {
-    return new DeployAtomicOperation(convertDescription(input));
+    return new YandexModifyInstanceGroupOperation(convertDescription(input));
   }
 
   @Override
@@ -68,7 +65,6 @@ public class YandexDeployAtomicOperationConverter
     return t;
   }
 
-  @Override
   public boolean acceptsVersion(ProviderVersion version) {
     return version == ProviderVersion.v1;
   }

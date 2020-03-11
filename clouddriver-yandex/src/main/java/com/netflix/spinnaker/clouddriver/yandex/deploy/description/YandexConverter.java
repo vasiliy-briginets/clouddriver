@@ -18,9 +18,10 @@ package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 
 import static java.util.stream.Collectors.toList;
 import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupOuterClass.*;
-import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOuterClass.CreateInstanceGroupMetadata;
-import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOuterClass.CreateInstanceGroupRequest;
+import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOuterClass.*;
+import static yandex.cloud.api.operation.OperationOuterClass.Operation;
 
+import com.google.common.base.Strings;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.CreateInstanceGroupFailedException;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudServerGroup;
@@ -28,7 +29,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import org.jetbrains.annotations.NotNull;
-import yandex.cloud.api.operation.OperationOuterClass;
 
 public class YandexConverter {
   private static final long GB = 1024 * 1024 * 1024;
@@ -36,10 +36,45 @@ public class YandexConverter {
   @SuppressWarnings("Duplicates")
   @NotNull
   public static CreateInstanceGroupRequest mapToCreateRequest(
-      YandexDeployGroupDescription description) {
+      YandexInstanceGroupDescription description) {
     CreateInstanceGroupRequest.Builder builder =
         CreateInstanceGroupRequest.newBuilder()
             .setFolderId(description.getCredentials().getFolder())
+            .setInstanceTemplate(mapInstanceTemplate(description.getInstanceTemplate()))
+            .setScalePolicy(
+                mapScalePolicy(description.getAutoScalePolicy(), description.getGroupSize()))
+            .setDeployPolicy(mapDeployPolicy(description.getDeployPolicy()))
+            .setAllocationPolicy(mapAllocationPolicy(description.getZones()))
+            .setServiceAccountId(description.getServiceAccountId());
+
+    if (description.getName() != null) {
+      builder.setName(description.getName());
+    }
+    if (description.getDescription() != null) {
+      builder.setDescription(description.getDescription());
+    }
+    if (description.getLabels() != null) {
+      builder.putAllLabels(description.getLabels());
+    }
+    if (description.getLoadBalancerIntegration() != null
+        && description.getLoadBalancerIntegration().getTargetGroupSpec() != null) {
+      builder.setLoadBalancerSpec(
+          mapLoadBalancerSpec(description.getLoadBalancerIntegration().getTargetGroupSpec()));
+    }
+    if (description.getHealthCheckSpecs() != null) {
+      builder.setHealthChecksSpec(mapHealthCheckSpecs(description.getHealthCheckSpecs()));
+    }
+    return builder.build();
+  }
+
+  @SuppressWarnings("Duplicates")
+  @NotNull
+  public static UpdateInstanceGroupRequest mapToUpdateRequest(
+      YandexInstanceGroupDescription description, String igID) {
+    UpdateInstanceGroupRequest.Builder builder =
+        UpdateInstanceGroupRequest.newBuilder()
+            .setInstanceGroupId(igID)
+            //        .setUpdateMask(FieldMask.newBuilder().addPaths()) // todo:
             .setInstanceTemplate(mapInstanceTemplate(description.getInstanceTemplate()))
             .setScalePolicy(
                 mapScalePolicy(description.getAutoScalePolicy(), description.getGroupSize()))
@@ -141,8 +176,7 @@ public class YandexConverter {
     return builder.build();
   }
 
-  private static AttachedDiskSpec mapAttachedDiskSpec(
-      YandexCloudServerGroup.AttachedDiskSpec spec) {
+  public static AttachedDiskSpec mapAttachedDiskSpec(YandexCloudServerGroup.AttachedDiskSpec spec) {
     AttachedDiskSpec.DiskSpec.Builder diskSpec =
         AttachedDiskSpec.DiskSpec.newBuilder()
             .setTypeId(spec.getDiskSpec().getTypeId())
@@ -150,10 +184,10 @@ public class YandexConverter {
     if (spec.getDiskSpec().getDescription() != null) {
       diskSpec.setDescription(spec.getDiskSpec().getDescription());
     }
-    if (spec.getDiskSpec().getImageId() != null) {
+    if (!Strings.isNullOrEmpty(spec.getDiskSpec().getImageId())) {
       diskSpec.setImageId(spec.getDiskSpec().getImageId());
     }
-    if (spec.getDiskSpec().getSnapshotId() != null) {
+    if (!Strings.isNullOrEmpty(spec.getDiskSpec().getSnapshotId())) {
       diskSpec.setSnapshotId(spec.getDiskSpec().getSnapshotId());
     }
     AttachedDiskSpec.Builder builder =
@@ -282,8 +316,7 @@ public class YandexConverter {
         .build();
   }
 
-  public static CreateInstanceGroupMetadata convertOperationMetadata(
-      OperationOuterClass.Operation operation) {
+  public static CreateInstanceGroupMetadata convertCreateOperationMetadata(Operation operation) {
     try {
       return operation.getMetadata().unpack(CreateInstanceGroupMetadata.class);
     } catch (InvalidProtocolBufferException e) {

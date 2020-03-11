@@ -22,7 +22,6 @@ import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOute
 import static yandex.cloud.api.operation.OperationOuterClass.Operation;
 import static yandex.cloud.api.operation.OperationServiceOuterClass.GetOperationRequest;
 
-import com.netflix.frigga.Names;
 import com.netflix.spinnaker.clouddriver.data.task.Task;
 import com.netflix.spinnaker.clouddriver.data.task.TaskRepository;
 import com.netflix.spinnaker.clouddriver.deploy.DeployDescription;
@@ -32,16 +31,12 @@ import com.netflix.spinnaker.clouddriver.helpers.OperationPoller;
 import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexConverter;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexDeployGroupDescription;
-import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudServerGroup.AttachedDiskSpec;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import com.netflix.spinnaker.kork.artifacts.model.Artifact;
-import groovy.util.logging.Slf4j;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -73,73 +68,33 @@ public class YandexDeployHandler implements DeployHandler<YandexDeployGroupDescr
   public DeploymentResult handle(YandexDeployGroupDescription description, List priorOutputs) {
     YandexCloudCredentials credentials = description.getCredentials();
 
-    produceServerGroupName(description);
-    updateBootImageIdIfNeed(description);
-    saturateAllLabels(description);
+    getTask()
+        .updateStatus(
+            BASE_PHASE,
+            "Initializing creation of server group for application '"
+                + description.getApplication()
+                + "' stack '"
+                + description.getStack()
+                + "'...");
+    getTask().updateStatus(BASE_PHASE, "Looking up next sequence...");
+    description.produceServerGroupName();
+    getTask().updateStatus(BASE_PHASE, "Produced server group name: " + description.getName());
+
+    description.saturateLabels();
 
     // todo: add into lb
-
     getTask().updateStatus(BASE_PHASE, "Composing server group " + description.getName() + "...");
     CreateInstanceGroupRequest request = YandexConverter.mapToCreateRequest(description);
+
     Operation operation = credentials.instanceGroupService().create(request);
     waitDeployEnd(operation, credentials.operationService());
     getTask().updateStatus(BASE_PHASE, "Done creating server group " + description.getName() + ".");
     return makeDeploymentResult(request, credentials);
   }
 
-  private void saturateAllLabels(YandexDeployGroupDescription description) {
-    if (description.getLabels() == null) {
-      description.setLabels(new HashMap<>());
-    }
-    if (description.getInstanceTemplate().getLabels() == null) {
-      description.getInstanceTemplate().setLabels(new HashMap<>());
-    }
-
-    Integer sequence = Names.parseName(description.getName()).getSequence();
-    String clusterName =
-        new YandexServerGroupNameResolver(description.getCredentials())
-            .combineAppStackDetail(description.getApplication(), description.getStack(), null);
-
-    saturateLabels(description.getLabels(), description, sequence, clusterName);
-    saturateLabels(
-        description.getInstanceTemplate().getLabels(), description, sequence, clusterName);
-  }
-
-  private void saturateLabels(
-      Map<String, String> labels,
-      YandexDeployGroupDescription description,
-      Integer sequence,
-      String clusterName) {
-    labels.putIfAbsent("spinnaker-server-group", description.getName());
-    labels.putIfAbsent("spinnaker-moniker-application", description.getApplication());
-    labels.putIfAbsent("spinnaker-moniker-cluster", clusterName);
-    labels.putIfAbsent("spinnaker-moniker-stack", description.getStack());
-    labels.put("spinnaker-moniker-sequence", sequence == null ? null : sequence.toString());
-  }
-
-  private void produceServerGroupName(YandexDeployGroupDescription description) {
-    YandexServerGroupNameResolver serverGroupNameResolver =
-        new YandexServerGroupNameResolver(description.getCredentials());
-    String clusterName =
-        serverGroupNameResolver.combineAppStackDetail(
-            description.getApplication(), description.getStack(), null);
-
-    getTask()
-        .updateStatus(
-            BASE_PHASE, "Initializing creation of server group for cluster " + clusterName + "...");
-
-    getTask().updateStatus(BASE_PHASE, "Looking up next sequence...");
-
-    String serverGroupName =
-        serverGroupNameResolver.resolveNextServerGroupName(
-            description.getApplication(), description.getStack(), null, false);
-    description.setName(serverGroupName);
-    getTask().updateStatus(BASE_PHASE, "Produced server group name: " + serverGroupName);
-  }
-
   private void waitDeployEnd(Operation operation, OperationServiceBlockingStub operationService) {
     CreateInstanceGroupMetadata operationMetadata =
-        YandexConverter.convertOperationMetadata(operation);
+        YandexConverter.convertCreateOperationMetadata(operation);
     operationPoller.waitForOperation(
         () ->
             operationService.get(
@@ -182,21 +137,5 @@ public class YandexDeployHandler implements DeployHandler<YandexDeployGroupDescr
         Collections.singletonMap(region, instanceGroupName));
     deploymentResult.setDeployments(Collections.singleton(deployment));
     return deploymentResult;
-  }
-
-  private void updateBootImageIdIfNeed(YandexDeployGroupDescription description) {
-    Artifact artifact = description.getImageArtifact();
-    if (artifact == null) {
-      return;
-    }
-    if (!"yandex/image".equals(artifact.getType())) {
-      throw new CreateInstanceGroupFailedException(
-          "Artifact to deploy to Yandex must be of type yandex/image");
-    }
-
-    AttachedDiskSpec.DiskSpec diskSpec =
-        description.getInstanceTemplate().getBootDiskSpec().getDiskSpec();
-    diskSpec.setImageId(artifact.getReference());
-    diskSpec.setSnapshotId(null);
   }
 }
