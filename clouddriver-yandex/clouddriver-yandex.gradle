@@ -23,14 +23,11 @@ dependencies {
   annotationProcessor "org.projectlombok:lombok"
   testAnnotationProcessor "org.projectlombok:lombok"
 
-  implementation 'com.yandex.cloud:sdk:1.1.0'
-//  implementation 'io.grpc:grpc-netty-shaded:1.25.0'
-//  implementation 'io.grpc:grpc-protobuf:1.25.0'
-//  implementation 'io.grpc:grpc-stub:1.25.0'
-  compile ("io.opencensus:opencensus-api:0.21.0") {
+  implementation 'com.yandex.cloud:sdk:1.2.0'
+  compile("io.opencensus:opencensus-api:0.21.0") {
     force = true
   }
-  compile ("io.opencensus:opencensus-contrib-grpc-metrics:0.21.0") {
+  compile("io.opencensus:opencensus-contrib-grpc-metrics:0.21.0") {
     force = true
   }
   implementation "org.codehaus.groovy:groovy-all"

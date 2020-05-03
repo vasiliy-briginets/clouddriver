@@ -46,8 +46,7 @@ public class YandexInstanceHealth implements Health {
         case STARTING:
           return HealthState.Starting;
         case RUNNING:
-          //          return HealthState.Unknown;
-          return HealthState.Up;
+          return HealthState.Unknown;
         case ERROR:
         case CRASHED:
           return HealthState.Failed;

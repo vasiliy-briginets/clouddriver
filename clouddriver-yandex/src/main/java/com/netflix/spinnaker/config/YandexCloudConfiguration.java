@@ -16,9 +16,8 @@
 
 package com.netflix.spinnaker.config;
 
-import com.netflix.spinnaker.clouddriver.helpers.OperationPoller;
+import com.netflix.spinnaker.clouddriver.yandex.deploy.YandexOperationPoller;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentialsInitializer;
-import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -34,24 +33,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @ComponentScan("com.netflix.spinnaker.clouddriver.yandex")
 @Import(value = {YandexCloudCredentialsInitializer.class})
 public class YandexCloudConfiguration {
-  //  @Bean
-  //  @ConfigurationProperties("google")
-  //  YandeConfigurationProperties googleConfigurationProperties() {
-  //    new GoogleConfigurationProperties()
-  //  }
-
-  //  @Bean
-  //  GoogleHealthIndicator googleHealthIndicator() {
-  //    new GoogleHealthIndicator()
-  //  }
-
-  //  @Bean
-  //  GoogleOperationPoller googleOperationPoller() {
-  //    new GoogleOperationPoller()
-  //  }
   @Bean
-  OperationPoller yandexOperationPoller() {
-    return new OperationPoller(
-        (int) Duration.ofMinutes(10).getSeconds(), (int) Duration.ofMinutes(1).getSeconds());
+  YandexOperationPoller yandexOperationPoller() {
+    return new YandexOperationPoller();
   }
 }

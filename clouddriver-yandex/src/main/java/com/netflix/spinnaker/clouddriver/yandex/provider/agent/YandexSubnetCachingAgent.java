@@ -16,11 +16,6 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.provider.agent;
 
-import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE;
-import static java.util.Collections.*;
-import static yandex.cloud.api.vpc.v1.SubnetOuterClass.Subnet;
-import static yandex.cloud.api.vpc.v1.SubnetServiceOuterClass.ListSubnetsRequest;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.spinnaker.cats.agent.AgentDataType;
 import com.netflix.spinnaker.cats.agent.CacheResult;
@@ -31,18 +26,24 @@ import com.netflix.spinnaker.cats.provider.ProviderCache;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudSubnet;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
+import lombok.Getter;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lombok.Getter;
+
+import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE;
+import static java.util.Collections.*;
+import static yandex.cloud.api.vpc.v1.SubnetOuterClass.Subnet;
+import static yandex.cloud.api.vpc.v1.SubnetServiceOuterClass.ListSubnetsRequest;
 
 @Getter
 public class YandexSubnetCachingAgent extends AbstractYandexCachingAgent {
   private String agentType =
-      getAccountName() + "/" + YandexSubnetCachingAgent.class.getSimpleName();
+    getAccountName() + "/" + YandexSubnetCachingAgent.class.getSimpleName();
   private Set<AgentDataType> providedDataTypes =
-      singleton(AUTHORITATIVE.forType(Keys.Namespace.SUBNETS.getNs()));
+    singleton(AUTHORITATIVE.forType(Keys.Namespace.SUBNETS.getNs()));
 
   public YandexSubnetCachingAgent(YandexCloudCredentials credentials, ObjectMapper objectMapper) {
     super(credentials, objectMapper);
@@ -54,17 +55,17 @@ public class YandexSubnetCachingAgent extends AbstractYandexCachingAgent {
     List<Subnet> subnetList = getCredentials().subnetService().list(request).getSubnetsList();
 
     Collection<CacheData> cacheData =
-        subnetList.stream()
-            .map(
-                subnet ->
-                    new DefaultCacheData(
-                        Keys.getSubnetKey(subnet.getId(), subnet.getFolderId(), subnet.getName()),
-                        getObjectMapper()
-                            .convertValue(
-                                YandexCloudSubnet.createFromProto(subnet, getAccountName()),
-                                MAP_TYPE_REFERENCE),
-                        emptyMap()))
-            .collect(Collectors.toList());
+      subnetList.stream()
+        .map(
+          subnet ->
+            new DefaultCacheData(
+              Keys.getSubnetKey(getAccountName(), subnet.getId(), subnet.getFolderId(), subnet.getName()),
+              getObjectMapper()
+                .convertValue(
+                  YandexCloudSubnet.createFromProto(subnet, getAccountName()),
+                  MAP_TYPE_REFERENCE),
+              emptyMap()))
+        .collect(Collectors.toList());
 
     return new DefaultCacheResult(singletonMap(Keys.Namespace.SUBNETS.getNs(), cacheData));
   }

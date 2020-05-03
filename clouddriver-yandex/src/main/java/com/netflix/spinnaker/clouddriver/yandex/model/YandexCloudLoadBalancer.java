@@ -16,41 +16,120 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.model;
 
-import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerOuterClass.NetworkLoadBalancer;
-
 import com.netflix.spinnaker.clouddriver.model.LoadBalancer;
 import com.netflix.spinnaker.clouddriver.model.LoadBalancerServerGroup;
 import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
-import java.util.HashSet;
-import java.util.Set;
+import com.netflix.spinnaker.clouddriver.yandex.model.health.YandexLoadBalancerHealth;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerOuterClass.NetworkLoadBalancer;
 
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class YandexCloudLoadBalancer implements LoadBalancer {
-  String id;
+  String cloudProvider;
   String account;
+  String id;
   String region;
   String name;
-  String type;
-  String cloudProvider;
+  String description;
+  BalancerType balancerType;
+  Long createdTime;
+  SessionAffinity sessionAffinity;
+  List<Listener> listeners;
+  Map<String, String> labels;
+
   Set<LoadBalancerServerGroup> serverGroups;
+  Map<String, List<YandexLoadBalancerHealth>> healths;
+
+  @Override
+  public String getType() {
+    return getCloudProvider();
+  }
 
   public static YandexCloudLoadBalancer createFromNetworkLoadBalancer(
-      NetworkLoadBalancer nlb, String account) {
+    NetworkLoadBalancer nlb, String account, Map<String, List<YandexLoadBalancerHealth>> healths) {
     return YandexCloudLoadBalancer.builder()
-        .id(nlb.getId())
-        .account(account)
-        .region(nlb.getRegionId())
-        .name(nlb.getName())
-        .type(YandexCloudProvider.ID)
-        .cloudProvider(YandexCloudProvider.ID)
-        .serverGroups(new HashSet<>())
-        .build();
+      .cloudProvider(YandexCloudProvider.ID)
+      .account(account)
+      .id(nlb.getId())
+      .region(nlb.getRegionId())
+      .name(nlb.getName())
+      .description(nlb.getDescription())
+      .balancerType(BalancerType.valueOf(nlb.getType().name()))
+      .createdTime(nlb.getCreatedAt().getSeconds() * 1000)
+      .sessionAffinity(SessionAffinity.valueOf(nlb.getSessionAffinity().name()))
+      .listeners(nlb.getListenersList().stream()
+        .map(listener -> new Listener(
+          listener.getName(),
+          listener.getAddress(),
+          (int) listener.getPort(),
+          Protocol.valueOf(listener.getProtocol().name()),
+          (int) listener.getTargetPort(),
+          listener.getSubnetId(),
+          null
+        ))
+        .collect(Collectors.toList()))
+      .labels(nlb.getLabelsMap())
+      .healths(healths)
+      .serverGroups(new HashSet<>())
+      .build();
   }
+
+  public enum BalancerType {
+    EXTERNAL, INTERNAL;
+  }
+
+  public enum SessionAffinity {
+    SESSION_AFFINITY_UNSPECIFIED, CLIENT_IP_PORT_PROTO;
+  }
+
+  public enum Protocol {
+    TCP, UDP;
+  }
+
+  public enum IpVersion {
+    IPV4, IPV6;
+  }
+
+  @Data
+  @AllArgsConstructor
+  public static class Listener {
+    private String name;
+    private String address;
+    private Integer port;
+    private Protocol protocol;
+    private Integer targetPort;
+    private String subnetId;
+    private IpVersion ipVersion;
+  }
+
+
+  //todo: удалить
+//  @Data
+//  public static class AttachedTargetGroup {
+//    private String targetGroupId;
+//    private List<HealthCheck> healthChecks;
+//  }
+
+//  @Data
+//  public static class HealthCheck {
+//    private Integer checkIntervalSec;
+//    private Integer healthyThreshold;
+//    private Integer unhealthyThreshold;
+//    private Integer port;
+//    private Integer timeoutSec;
+//    private String requestPath;
+//  }
 }

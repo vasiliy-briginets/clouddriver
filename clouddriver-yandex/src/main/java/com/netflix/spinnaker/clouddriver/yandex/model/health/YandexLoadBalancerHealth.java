@@ -18,49 +18,41 @@ package com.netflix.spinnaker.clouddriver.yandex.model.health;
 
 import com.netflix.spinnaker.clouddriver.model.Health;
 import com.netflix.spinnaker.clouddriver.model.HealthState;
-import java.util.List;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
+@AllArgsConstructor
 public class YandexLoadBalancerHealth implements Health {
-  private String instanceName;
-  private String instanceZone;
-  private List<LBHealthSummary> loadBalancers;
-  private PlatformStatus status;
+  private String address;
+  private String subnetId;
+  private Status status;
 
   @Override
   public HealthState getState() {
     return status.toHeathState();
   }
 
-  public enum PlatformStatus {
+  public enum Status {
+    INITIAL,
     HEALTHY,
-    UNHEALTHY;
+    UNHEALTHY,
+    DRAINING,
+    INACTIVE;
 
     public HealthState toHeathState() {
-      switch (this) {
-        case HEALTHY:
-          return HealthState.Up;
-        default:
-          return HealthState.Down;
+      if (this == Status.HEALTHY) {
+        return HealthState.Up;
       }
+      return HealthState.Down;
     }
 
-    public LBHealthSummary.ServiceStatus toServiceStatus() {
-      switch (this) {
-        case HEALTHY:
-          return LBHealthSummary.ServiceStatus.InService;
-        default:
-          return LBHealthSummary.ServiceStatus.OutOfService;
+    public ServiceStatus toServiceStatus() {
+      if (this == Status.HEALTHY) {
+        return ServiceStatus.InService;
       }
+      return ServiceStatus.OutOfService;
     }
-  }
-
-  @Data
-  public static class LBHealthSummary {
-    private String loadBalancerName;
-    private String instanceId;
-    private ServiceStatus state;
 
     public enum ServiceStatus {
       InService,

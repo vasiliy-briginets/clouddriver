@@ -16,27 +16,24 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy.converter;
 
-import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation;
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperations;
 import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCredentialsSupport;
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
-import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexInstanceGroupDescription;
-import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.ModifyYandexInstanceGroupOperation;
+import com.netflix.spinnaker.clouddriver.yandex.deploy.description.UpsertYandexLoadBalancerDescription;
+import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.UpsertYandexLoadBalancerAtomicOperation;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-@YandexOperation(AtomicOperations.UPDATE_LAUNCH_CONFIG)
+@YandexOperation(AtomicOperations.UPSERT_LOAD_BALANCER)
 @Component
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class YandexModifyInstanceGroupOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
-  @Override
-  public AtomicOperation convertOperation(Map input) {
-    return new ModifyYandexInstanceGroupOperation(convertDescription(input));
+public class UpsertYandexLoadBalancerAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+  public UpsertYandexLoadBalancerAtomicOperation convertOperation(Map input) {
+    return new UpsertYandexLoadBalancerAtomicOperation(convertDescription(input));
   }
 
-  @Override
-  public YandexInstanceGroupDescription convertDescription(Map input) {
-    return ConverterHelper.convertDescription(input, this, YandexInstanceGroupDescription.class);
+  public UpsertYandexLoadBalancerDescription convertDescription(Map input) {
+    return ConverterHelper.convertDescription(input, this, UpsertYandexLoadBalancerDescription.class);
   }
 }

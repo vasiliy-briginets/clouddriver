@@ -17,15 +17,16 @@
 package com.netflix.spinnaker.clouddriver.yandex;
 
 import com.netflix.spinnaker.clouddriver.core.CloudProvider;
-import java.lang.annotation.Annotation;
 import org.springframework.stereotype.Component;
+
+import java.lang.annotation.Annotation;
 
 @Component
 public class YandexCloudProvider implements CloudProvider {
   public static final String ID = "yandex";
   private final String displayName = "Yandex.Cloud";
 
-  private final Class<? extends Annotation> operationAnnotationType = YandexCloudOperation.class;
+  private final Class<? extends Annotation> operationAnnotationType = YandexOperation.class;
 
   @Override
   public String getId() {

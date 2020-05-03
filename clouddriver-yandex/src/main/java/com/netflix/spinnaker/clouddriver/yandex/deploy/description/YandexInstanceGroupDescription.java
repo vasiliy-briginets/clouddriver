@@ -16,28 +16,89 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 
-import com.netflix.spinnaker.clouddriver.security.resources.CredentialsNameable;
+import com.google.common.base.Strings;
+import com.netflix.frigga.Names;
+import com.netflix.spinnaker.clouddriver.deploy.DeployDescription;
+import com.netflix.spinnaker.clouddriver.security.resources.ApplicationNameable;
+import com.netflix.spinnaker.clouddriver.yandex.deploy.YandexServerGroupNameResolver;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudServerGroup;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import lombok.Data;
+import lombok.*;
+
+import java.util.*;
 
 @Data
-public class YandexInstanceGroupDescription implements CredentialsNameable, Cloneable {
+@Builder(toBuilder = true)
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+public class YandexInstanceGroupDescription implements CredentialsChangeable, Cloneable, DeployDescription, ApplicationNameable {
   private YandexCloudCredentials credentials;
+
+  public void setCredentials(YandexCloudCredentials credentials) {
+    this.credentials = credentials;
+  }
+
+  private String application;
+  private String stack;
   private String freeFormDetails;
+
+  private String sourceServerGroupName;
 
   private String name;
   private String description;
   private Set<String> zones;
   private Map<String, String> labels;
-  private Long groupSize;
+  private Long targetSize;
   private YandexCloudServerGroup.AutoScalePolicy autoScalePolicy;
   private YandexCloudServerGroup.DeployPolicy deployPolicy;
-  private YandexCloudServerGroup.LoadBalancerIntegration loadBalancerIntegration;
+  private YandexCloudServerGroup.TargetGroupSpec targetGroupSpec;
   private List<YandexCloudServerGroup.HealthCheckSpec> healthCheckSpecs;
   private YandexCloudServerGroup.InstanceTemplate instanceTemplate;
   private String serviceAccountId;
+  private Map<String, YandexCloudServerGroup.HealthCheckSpec> balancers;
+
+  @Override
+  public Collection<String> getApplications() {
+    if (!Strings.isNullOrEmpty(application)) {
+      return Collections.singletonList(application);
+    }
+
+    if (!Strings.isNullOrEmpty(getName())) {
+      return Collections.singletonList(Names.parseName(getName()).getApp());
+    }
+
+    return null;
+  }
+
+  public void produceServerGroupName() {
+    YandexServerGroupNameResolver serverGroupNameResolver = new YandexServerGroupNameResolver(getCredentials());
+    this.setName(
+      serverGroupNameResolver.resolveNextServerGroupName(
+        getApplication(), getStack(), getFreeFormDetails(), false));
+  }
+
+  public void saturateLabels() {
+    if (getLabels() == null) {
+      setLabels(new HashMap<>());
+    }
+    if (getInstanceTemplate().getLabels() == null) {
+      getInstanceTemplate().setLabels(new HashMap<>());
+    }
+
+    Integer sequence = Names.parseName(getName()).getSequence();
+    String clusterName =
+      new YandexServerGroupNameResolver(getCredentials())
+        .combineAppStackDetail(getApplication(), getStack(), getFreeFormDetails());
+
+    saturateLabels(getLabels(), sequence, clusterName);
+    saturateLabels(getInstanceTemplate().getLabels(), sequence, clusterName);
+  }
+
+  private void saturateLabels(Map<String, String> labels, Integer sequence, String clusterName) {
+    labels.putIfAbsent("spinnaker-server-group", this.getName());
+    labels.putIfAbsent("spinnaker-moniker-application", this.getApplication());
+    labels.putIfAbsent("spinnaker-moniker-cluster", clusterName);
+    labels.putIfAbsent("spinnaker-moniker-stack", this.getStack());
+    labels.put("spinnaker-moniker-sequence", sequence == null ? null : sequence.toString());
+  }
 }

@@ -14,10 +14,18 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.clouddriver.yandex.deploy;
+package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 
-public class CreateInstanceGroupFailedException extends RuntimeException {
-  public CreateInstanceGroupFailedException(String message) {
-    super(message);
+import com.netflix.spinnaker.clouddriver.security.resources.ServerGroupNameable;
+import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
+import lombok.Data;
+
+@Data
+public class DestroyYandexServerGroupDescription implements CredentialsChangeable, ServerGroupNameable {
+  private YandexCloudCredentials credentials;
+  private String serverGroupName;
+
+  public void setCredentials(YandexCloudCredentials credentials) {
+    this.credentials = credentials;
   }
 }

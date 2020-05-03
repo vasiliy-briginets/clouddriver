@@ -20,11 +20,6 @@ import com.google.common.base.Strings;
 import com.netflix.spinnaker.clouddriver.security.AccountCredentialsRepository;
 import com.netflix.spinnaker.clouddriver.security.CredentialsInitializerSynchronizable;
 import com.netflix.spinnaker.clouddriver.yandex.security.config.YandexConfigurationProperties;
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.time.Duration;
-import java.util.List;
-import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -32,10 +27,16 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Scope;
-import yandex.cloud.sdk.Config;
 import yandex.cloud.sdk.ServiceFactory;
+import yandex.cloud.sdk.ServiceFactoryConfig;
+import yandex.cloud.sdk.auth.ApiKey;
 import yandex.cloud.sdk.auth.Auth;
-import yandex.cloud.sdk.auth.JsonKey;
+
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableConfigurationProperties
@@ -50,29 +51,29 @@ public class YandexCloudCredentialsInitializer implements CredentialsInitializer
 
   @Bean
   public List yandexCloudCredentials(
-      YandexConfigurationProperties properties, AccountCredentialsRepository repository) {
+    YandexConfigurationProperties properties, AccountCredentialsRepository repository) {
     return properties.getAccounts().stream()
-        .map(YandexCloudCredentialsInitializer::convertToCredentials)
-        .peek(cred -> repository.save(cred.getName(), cred))
-        .collect(Collectors.toList());
+      .map(YandexCloudCredentialsInitializer::convertToCredentials)
+      .peek(cred -> repository.save(cred.getName(), cred))
+      .collect(Collectors.toList());
   }
 
   @NotNull
   private static YandexCloudCredentials convertToCredentials(
-      YandexConfigurationProperties.Account account) {
+    YandexConfigurationProperties.Account account) {
     YandexCloudCredentials credentials = new YandexCloudCredentials();
     credentials.setFolder(account.getFolder());
     credentials.setName(account.getName());
     credentials.setEnvironment(
-        MoreObjects.firstNonNull(account.getEnvironment(), account.getName()));
+      MoreObjects.firstNonNull(account.getEnvironment(), account.getName()));
     credentials.setAccountType(
-        MoreObjects.firstNonNull(account.getAccountType(), account.getName()));
+      MoreObjects.firstNonNull(account.getAccountType(), account.getName()));
     credentials.setServiceFactory(new ServiceFactory(makeJDKConfig(account)));
     return credentials;
   }
 
-  private static Config makeJDKConfig(YandexConfigurationProperties.Account account) {
-    Config.ConfigBuilder configBuilder = Config.builder();
+  private static ServiceFactoryConfig makeJDKConfig(YandexConfigurationProperties.Account account) {
+    ServiceFactoryConfig.ServiceFactoryConfigBuilder configBuilder = ServiceFactoryConfig.builder();
     if (!Strings.isNullOrEmpty(account.getEndpoint())) {
       String endpoint = account.getEndpoint();
       configBuilder.endpoint(endpoint);
@@ -81,9 +82,9 @@ public class YandexCloudCredentialsInitializer implements CredentialsInitializer
 
     try {
       return configBuilder
-          .credentials(Auth.fromFile(JsonKey::new, Paths.get(account.getJsonPath())))
-          .requestTimeout(Duration.ofMinutes(1))
-          .build();
+        .credentials(Auth.fromFile(ApiKey::new, Paths.get(account.getJsonPath())))
+        .requestTimeout(Duration.ofMinutes(1))
+        .build();
     } catch (IOException e) {
       throw new RuntimeException("Can't read json path with credentials", e);
     }

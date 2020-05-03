@@ -16,36 +16,34 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 
-import static java.util.stream.Collectors.toList;
-import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupOuterClass.*;
-import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOuterClass.*;
-import static yandex.cloud.api.operation.OperationOuterClass.Operation;
-
 import com.google.common.base.Strings;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.netflix.spinnaker.clouddriver.yandex.deploy.CreateInstanceGroupFailedException;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudServerGroup;
+import org.jetbrains.annotations.NotNull;
+
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
-import org.jetbrains.annotations.NotNull;
 
-public class YandexConverter {
+import static java.util.stream.Collectors.toList;
+import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupOuterClass.*;
+import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOuterClass.CreateInstanceGroupRequest;
+import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOuterClass.UpdateInstanceGroupRequest;
+
+public class YandexInstanceGroupConverter {
   private static final long GB = 1024 * 1024 * 1024;
 
   @SuppressWarnings("Duplicates")
   @NotNull
   public static CreateInstanceGroupRequest mapToCreateRequest(
-      YandexInstanceGroupDescription description) {
+    YandexInstanceGroupDescription description) {
     CreateInstanceGroupRequest.Builder builder =
-        CreateInstanceGroupRequest.newBuilder()
-            .setFolderId(description.getCredentials().getFolder())
-            .setInstanceTemplate(mapInstanceTemplate(description.getInstanceTemplate()))
-            .setScalePolicy(
-                mapScalePolicy(description.getAutoScalePolicy(), description.getGroupSize()))
-            .setDeployPolicy(mapDeployPolicy(description.getDeployPolicy()))
-            .setAllocationPolicy(mapAllocationPolicy(description.getZones()))
-            .setServiceAccountId(description.getServiceAccountId());
+      CreateInstanceGroupRequest.newBuilder()
+        .setFolderId(description.getCredentials().getFolder())
+        .setInstanceTemplate(mapInstanceTemplate(description.getInstanceTemplate()))
+        .setScalePolicy(mapScalePolicy(description.getAutoScalePolicy(), description.getTargetSize()))
+        .setDeployPolicy(mapDeployPolicy(description.getDeployPolicy()))
+        .setAllocationPolicy(mapAllocationPolicy(description.getZones()))
+        .setServiceAccountId(description.getServiceAccountId());
 
     if (description.getName() != null) {
       builder.setName(description.getName());
@@ -56,11 +54,16 @@ public class YandexConverter {
     if (description.getLabels() != null) {
       builder.putAllLabels(description.getLabels());
     }
-    if (description.getLoadBalancerIntegration() != null
-        && description.getLoadBalancerIntegration().getTargetGroupSpec() != null) {
-      builder.setLoadBalancerSpec(
-          mapLoadBalancerSpec(description.getLoadBalancerIntegration().getTargetGroupSpec()));
+    if (description.getTargetGroupSpec() != null) {
+      builder.setLoadBalancerSpec(mapLoadBalancerSpec(description.getTargetGroupSpec()));
+      if (description.getBalancers() != null) {
+        builder.getInstanceTemplateBuilder().putMetadata(
+          YandexCloudServerGroup.LOAD_BALANCERS_SPECS,
+          YandexCloudServerGroup.serializeLoadBalancersWithHealthChecks(description.getBalancers())
+        );
+      }
     }
+
     if (description.getHealthCheckSpecs() != null) {
       builder.setHealthChecksSpec(mapHealthCheckSpecs(description.getHealthCheckSpecs()));
     }
@@ -70,17 +73,17 @@ public class YandexConverter {
   @SuppressWarnings("Duplicates")
   @NotNull
   public static UpdateInstanceGroupRequest mapToUpdateRequest(
-      YandexInstanceGroupDescription description, String igID) {
+    YandexInstanceGroupDescription description, String igID) {
     UpdateInstanceGroupRequest.Builder builder =
-        UpdateInstanceGroupRequest.newBuilder()
-            .setInstanceGroupId(igID)
-            //        .setUpdateMask(FieldMask.newBuilder().addPaths()) // todo:
-            .setInstanceTemplate(mapInstanceTemplate(description.getInstanceTemplate()))
-            .setScalePolicy(
-                mapScalePolicy(description.getAutoScalePolicy(), description.getGroupSize()))
-            .setDeployPolicy(mapDeployPolicy(description.getDeployPolicy()))
-            .setAllocationPolicy(mapAllocationPolicy(description.getZones()))
-            .setServiceAccountId(description.getServiceAccountId());
+      UpdateInstanceGroupRequest.newBuilder()
+        .setInstanceGroupId(igID)
+        //        .setUpdateMask(FieldMask.newBuilder().addPaths()) // todo:
+        .setInstanceTemplate(mapInstanceTemplate(description.getInstanceTemplate()))
+        .setScalePolicy(
+          mapScalePolicy(description.getAutoScalePolicy(), description.getTargetSize()))
+        .setDeployPolicy(mapDeployPolicy(description.getDeployPolicy()))
+        .setAllocationPolicy(mapAllocationPolicy(description.getZones()))
+        .setServiceAccountId(description.getServiceAccountId());
 
     if (description.getName() != null) {
       builder.setName(description.getName());
@@ -91,33 +94,37 @@ public class YandexConverter {
     if (description.getLabels() != null) {
       builder.putAllLabels(description.getLabels());
     }
-    if (description.getLoadBalancerIntegration() != null
-        && description.getLoadBalancerIntegration().getTargetGroupSpec() != null) {
-      builder.setLoadBalancerSpec(
-          mapLoadBalancerSpec(description.getLoadBalancerIntegration().getTargetGroupSpec()));
-    }
     if (description.getHealthCheckSpecs() != null) {
       builder.setHealthChecksSpec(mapHealthCheckSpecs(description.getHealthCheckSpecs()));
+    }
+    if (description.getTargetGroupSpec() != null) {
+      builder.setLoadBalancerSpec(mapLoadBalancerSpec(description.getTargetGroupSpec()));
+      if (description.getBalancers() != null) {
+        builder.getInstanceTemplateBuilder().putMetadata(
+          YandexCloudServerGroup.LOAD_BALANCERS_SPECS,
+          YandexCloudServerGroup.serializeLoadBalancersWithHealthChecks(description.getBalancers())
+        );
+      }
     }
     return builder.build();
   }
 
   private static InstanceTemplate mapInstanceTemplate(
-      YandexCloudServerGroup.InstanceTemplate instanceTemplate) {
+    YandexCloudServerGroup.InstanceTemplate instanceTemplate) {
     InstanceTemplate.Builder builder =
-        InstanceTemplate.newBuilder()
-            .setPlatformId(instanceTemplate.getPlatformId())
-            .setResourcesSpec(
-                ResourcesSpec.newBuilder()
-                    .setCores(instanceTemplate.getResourcesSpec().getCores())
-                    .setCoreFraction(instanceTemplate.getResourcesSpec().getCoreFraction())
-                    .setGpus(instanceTemplate.getResourcesSpec().getGpus())
-                    .setMemory(instanceTemplate.getResourcesSpec().getMemory() * GB))
-            .setBootDiskSpec(mapAttachedDiskSpec(instanceTemplate.getBootDiskSpec()))
-            .addAllNetworkInterfaceSpecs(
-                instanceTemplate.getNetworkInterfaceSpecs().stream()
-                    .map(YandexConverter::mapNetworkInterface)
-                    .collect(toList()));
+      InstanceTemplate.newBuilder()
+        .setPlatformId(instanceTemplate.getPlatformId())
+        .setResourcesSpec(
+          ResourcesSpec.newBuilder()
+            .setCores(instanceTemplate.getResourcesSpec().getCores())
+            .setCoreFraction(instanceTemplate.getResourcesSpec().getCoreFraction())
+            .setGpus(instanceTemplate.getResourcesSpec().getGpus())
+            .setMemory(instanceTemplate.getResourcesSpec().getMemory() * GB))
+        .setBootDiskSpec(mapAttachedDiskSpec(instanceTemplate.getBootDiskSpec()))
+        .addAllNetworkInterfaceSpecs(
+          instanceTemplate.getNetworkInterfaceSpecs().stream()
+            .map(YandexInstanceGroupConverter::mapNetworkInterface)
+            .collect(toList()));
 
     if (instanceTemplate.getDescription() != null) {
       builder.setDescription(instanceTemplate.getDescription());
@@ -130,14 +137,14 @@ public class YandexConverter {
     }
     if (instanceTemplate.getSecondaryDiskSpecs() != null) {
       builder.addAllSecondaryDiskSpecs(
-          instanceTemplate.getSecondaryDiskSpecs().stream()
-              .map(YandexConverter::mapAttachedDiskSpec)
-              .collect(toList()));
+        instanceTemplate.getSecondaryDiskSpecs().stream()
+          .map(YandexInstanceGroupConverter::mapAttachedDiskSpec)
+          .collect(toList()));
     }
     if (instanceTemplate.getSchedulingPolicy() != null) {
       builder.setSchedulingPolicy(
-          SchedulingPolicy.newBuilder()
-              .setPreemptible(instanceTemplate.getSchedulingPolicy().isPreemptible()));
+        SchedulingPolicy.newBuilder()
+          .setPreemptible(instanceTemplate.getSchedulingPolicy().isPreemptible()));
     }
     if (instanceTemplate.getServiceAccountId() != null) {
       builder.setServiceAccountId(instanceTemplate.getServiceAccountId());
@@ -147,7 +154,7 @@ public class YandexConverter {
   }
 
   private static NetworkInterfaceSpec mapNetworkInterface(
-      YandexCloudServerGroup.NetworkInterfaceSpec spec) {
+    YandexCloudServerGroup.NetworkInterfaceSpec spec) {
     NetworkInterfaceSpec.Builder builder = NetworkInterfaceSpec.newBuilder();
     if (spec.getNetworkId() != null) {
       builder.setNetworkId(spec.getNetworkId());
@@ -157,18 +164,18 @@ public class YandexConverter {
     }
     if (spec.getPrimaryV4AddressSpec() != null) {
       builder.setPrimaryV4AddressSpec(
-          mapAddressSpec(spec.getPrimaryV4AddressSpec(), IpVersion.IPV4));
+        mapAddressSpec(spec.getPrimaryV4AddressSpec(), IpVersion.IPV4));
     }
     if (spec.getPrimaryV6AddressSpec() != null) {
       builder.setPrimaryV6AddressSpec(
-          mapAddressSpec(spec.getPrimaryV6AddressSpec(), IpVersion.IPV6));
+        mapAddressSpec(spec.getPrimaryV6AddressSpec(), IpVersion.IPV6));
     }
     return builder.build();
   }
 
   @NotNull
   private static PrimaryAddressSpec mapAddressSpec(
-      YandexCloudServerGroup.PrimaryAddressSpec addressSpec, IpVersion ipVersion) {
+    YandexCloudServerGroup.PrimaryAddressSpec addressSpec, IpVersion ipVersion) {
     PrimaryAddressSpec.Builder builder = PrimaryAddressSpec.newBuilder();
     if (addressSpec.isOneToOneNat()) {
       builder.setOneToOneNatSpec(OneToOneNatSpec.newBuilder().setIpVersion(ipVersion).build());
@@ -178,9 +185,9 @@ public class YandexConverter {
 
   public static AttachedDiskSpec mapAttachedDiskSpec(YandexCloudServerGroup.AttachedDiskSpec spec) {
     AttachedDiskSpec.DiskSpec.Builder diskSpec =
-        AttachedDiskSpec.DiskSpec.newBuilder()
-            .setTypeId(spec.getDiskSpec().getTypeId())
-            .setSize(spec.getDiskSpec().getSize() * GB);
+      AttachedDiskSpec.DiskSpec.newBuilder()
+        .setTypeId(spec.getDiskSpec().getTypeId())
+        .setSize(spec.getDiskSpec().getSize() * GB);
     if (spec.getDiskSpec().getDescription() != null) {
       diskSpec.setDescription(spec.getDiskSpec().getDescription());
     }
@@ -191,12 +198,12 @@ public class YandexConverter {
       diskSpec.setSnapshotId(spec.getDiskSpec().getSnapshotId());
     }
     AttachedDiskSpec.Builder builder =
-        AttachedDiskSpec.newBuilder()
-            .setMode(
-                spec.getMode() != null
-                    ? AttachedDiskSpec.Mode.valueOf(spec.getMode().name())
-                    : AttachedDiskSpec.Mode.READ_WRITE)
-            .setDiskSpec(diskSpec);
+      AttachedDiskSpec.newBuilder()
+        .setMode(
+          spec.getMode() != null
+            ? AttachedDiskSpec.Mode.valueOf(spec.getMode().name())
+            : AttachedDiskSpec.Mode.READ_WRITE)
+        .setDiskSpec(diskSpec);
 
     if (spec.getDeviceName() != null) {
       builder.setDeviceName(spec.getDeviceName());
@@ -206,7 +213,7 @@ public class YandexConverter {
 
   @SuppressWarnings("Duplicates")
   private static LoadBalancerSpec mapLoadBalancerSpec(
-      YandexCloudServerGroup.TargetGroupSpec targetGroupSpec) {
+    YandexCloudServerGroup.TargetGroupSpec targetGroupSpec) {
     TargetGroupSpec.Builder builder = TargetGroupSpec.newBuilder();
     if (targetGroupSpec.getName() != null) {
       builder.setName(targetGroupSpec.getName());
@@ -221,11 +228,11 @@ public class YandexConverter {
   }
 
   private static HealthChecksSpec mapHealthCheckSpecs(
-      List<YandexCloudServerGroup.HealthCheckSpec> healthCheckSpecs) {
+    List<YandexCloudServerGroup.HealthCheckSpec> healthCheckSpecs) {
     return HealthChecksSpec.newBuilder()
-        .addAllHealthCheckSpecs(
-            healthCheckSpecs.stream().map(YandexConverter::mapHealthCheckSpec).collect(toList()))
-        .build();
+      .addAllHealthCheckSpecs(
+        healthCheckSpecs.stream().map(YandexInstanceGroupConverter::mapHealthCheckSpec).collect(toList()))
+      .build();
   }
 
   @NotNull
@@ -233,72 +240,72 @@ public class YandexConverter {
     HealthCheckSpec.Builder builder = HealthCheckSpec.newBuilder();
     if (hc.getType() == YandexCloudServerGroup.HealthCheckSpec.Type.HTTP) {
       builder.setHttpOptions(
-          HealthCheckSpec.HttpOptions.newBuilder().setPort(hc.getPort()).setPath(hc.getPath()));
+        HealthCheckSpec.HttpOptions.newBuilder().setPort(hc.getPort()).setPath(hc.getPath()));
     } else {
       builder.setTcpOptions(HealthCheckSpec.TcpOptions.newBuilder().setPort(hc.getPort()));
     }
     return builder
-        .setInterval(mapDuration(hc.getInterval()))
-        .setTimeout(mapDuration(hc.getTimeout()))
-        .setUnhealthyThreshold(hc.getUnhealthyThreshold())
-        .setHealthyThreshold(hc.getHealthyThreshold())
-        .build();
+      .setInterval(mapDuration(hc.getInterval()))
+      .setTimeout(mapDuration(hc.getTimeout()))
+      .setUnhealthyThreshold(hc.getUnhealthyThreshold())
+      .setHealthyThreshold(hc.getHealthyThreshold())
+      .build();
   }
 
   private static DeployPolicy mapDeployPolicy(YandexCloudServerGroup.DeployPolicy deployPolicy) {
     return DeployPolicy.newBuilder()
-        .setMaxCreating(deployPolicy.getMaxCreating())
-        .setMaxDeleting(deployPolicy.getMaxDeleting())
-        .setMaxExpansion(deployPolicy.getMaxExpansion())
-        .setMaxUnavailable(deployPolicy.getMaxUnavailable())
-        .setStartupDuration(mapDuration(deployPolicy.getStartupDuration()))
-        .build();
+      .setMaxCreating(deployPolicy.getMaxCreating())
+      .setMaxDeleting(deployPolicy.getMaxDeleting())
+      .setMaxExpansion(deployPolicy.getMaxExpansion())
+      .setMaxUnavailable(deployPolicy.getMaxUnavailable())
+      .setStartupDuration(mapDuration(deployPolicy.getStartupDuration()))
+      .build();
   }
 
   private static ScalePolicy mapScalePolicy(
-      YandexCloudServerGroup.AutoScalePolicy autoScalePolicy, Long groupSize) {
+    YandexCloudServerGroup.AutoScalePolicy autoScalePolicy, Long targetSize) {
     ScalePolicy.Builder builder = ScalePolicy.newBuilder();
     if (autoScalePolicy != null) {
       ScalePolicy.AutoScale.Builder asBuilder =
-          ScalePolicy.AutoScale.newBuilder()
-              .setInitialSize(autoScalePolicy.getInitialSize())
-              .setMinZoneSize(autoScalePolicy.getMinZoneSize())
-              .setMaxSize(autoScalePolicy.getMaxSize());
+        ScalePolicy.AutoScale.newBuilder()
+          .setInitialSize(autoScalePolicy.getInitialSize())
+          .setMinZoneSize(autoScalePolicy.getMinZoneSize())
+          .setMaxSize(autoScalePolicy.getMaxSize());
 
       asBuilder.setMeasurementDuration(mapDuration(autoScalePolicy.getMeasurementDuration()));
       asBuilder.setWarmupDuration(mapDuration(autoScalePolicy.getWarmupDuration()));
       asBuilder.setStabilizationDuration(mapDuration(autoScalePolicy.getStabilizationDuration()));
       if (autoScalePolicy.getCpuUtilizationRule() != null) {
         asBuilder.setCpuUtilizationRule(
-            ScalePolicy.CpuUtilizationRule.newBuilder()
-                .setUtilizationTarget(
-                    autoScalePolicy.getCpuUtilizationRule().getUtilizationTarget()));
+          ScalePolicy.CpuUtilizationRule.newBuilder()
+            .setUtilizationTarget(
+              autoScalePolicy.getCpuUtilizationRule().getUtilizationTarget()));
       }
       if (autoScalePolicy.getCustomRules() != null) {
         autoScalePolicy.getCustomRules().stream()
-            .map(
-                rule ->
-                    ScalePolicy.CustomRule.newBuilder()
-                        .setRuleType(
-                            ScalePolicy.CustomRule.RuleType.valueOf(rule.getRuleType().name()))
-                        .setMetricType(
-                            ScalePolicy.CustomRule.MetricType.valueOf(rule.getMetricType().name()))
-                        .setMetricName(rule.getMetricName())
-                        .setTarget(rule.getTarget())
-                        .build())
-            .forEach(asBuilder::addCustomRules);
+          .map(
+            rule ->
+              ScalePolicy.CustomRule.newBuilder()
+                .setRuleType(
+                  ScalePolicy.CustomRule.RuleType.valueOf(rule.getRuleType().name()))
+                .setMetricType(
+                  ScalePolicy.CustomRule.MetricType.valueOf(rule.getMetricType().name()))
+                .setMetricName(rule.getMetricName())
+                .setTarget(rule.getTarget())
+                .build())
+          .forEach(asBuilder::addCustomRules);
       }
       builder.setAutoScale(asBuilder);
     } else {
       builder.setFixedScale(
-          ScalePolicy.FixedScale.newBuilder()
-              .setSize(groupSize == null || groupSize < 0 ? 0 : groupSize));
+        ScalePolicy.FixedScale.newBuilder()
+          .setSize(targetSize == null || targetSize < 0 ? 0 : targetSize));
     }
     return builder.build();
   }
 
   @NotNull
-  private static com.google.protobuf.Duration.Builder mapDuration(Duration duration) {
+  public static com.google.protobuf.Duration.Builder mapDuration(Duration duration) {
     com.google.protobuf.Duration.Builder builder = com.google.protobuf.Duration.newBuilder();
     if (duration == null) {
       return builder;
@@ -309,18 +316,10 @@ public class YandexConverter {
   @NotNull
   private static AllocationPolicy mapAllocationPolicy(Set<String> zones) {
     return AllocationPolicy.newBuilder()
-        .addAllZones(
-            zones.stream()
-                .map(zone -> AllocationPolicy.Zone.newBuilder().setZoneId(zone).build())
-                .collect(toList()))
-        .build();
-  }
-
-  public static CreateInstanceGroupMetadata convertCreateOperationMetadata(Operation operation) {
-    try {
-      return operation.getMetadata().unpack(CreateInstanceGroupMetadata.class);
-    } catch (InvalidProtocolBufferException e) {
-      throw new CreateInstanceGroupFailedException(operation.toString());
-    }
+      .addAllZones(
+        zones.stream()
+          .map(zone -> AllocationPolicy.Zone.newBuilder().setZoneId(zone).build())
+          .collect(toList()))
+      .build();
   }
 }

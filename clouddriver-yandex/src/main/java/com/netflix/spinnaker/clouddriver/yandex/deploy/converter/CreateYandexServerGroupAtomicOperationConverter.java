@@ -16,23 +16,26 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy.converter;
 
-import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation;
+import com.netflix.spinnaker.clouddriver.deploy.DeployAtomicOperation;
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperations;
 import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCredentialsSupport;
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexInstanceGroupDescription;
-import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.ModifyYandexInstanceGroupOperation;
+import groovy.util.logging.Slf4j;
+import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-@YandexOperation(AtomicOperations.UPDATE_LAUNCH_CONFIG)
+@YandexOperation(AtomicOperations.CREATE_SERVER_GROUP)
 @Component
+@Slf4j
+@NoArgsConstructor
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class YandexModifyInstanceGroupOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+public class CreateYandexServerGroupAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
   @Override
-  public AtomicOperation convertOperation(Map input) {
-    return new ModifyYandexInstanceGroupOperation(convertDescription(input));
+  public DeployAtomicOperation convertOperation(Map input) {
+    return new DeployAtomicOperation(convertDescription(input));
   }
 
   @Override

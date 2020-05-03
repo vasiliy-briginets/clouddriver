@@ -26,14 +26,15 @@ import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudInstance;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import yandex.cloud.api.compute.v1.InstanceServiceOuterClass;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class YandexInstanceProvider implements InstanceProvider<YandexCloudInstance, String> {
@@ -41,13 +42,14 @@ public class YandexInstanceProvider implements InstanceProvider<YandexCloudInsta
   private AccountCredentialsProvider accountCredentialsProvider;
   private ObjectMapper objectMapper;
 
-  @Getter private final String cloudProvider = YandexCloudProvider.ID;
+  @Getter
+  private final String cloudProvider = YandexCloudProvider.ID;
 
   @Autowired
   public YandexInstanceProvider(
-      Cache cacheView,
-      AccountCredentialsProvider accountCredentialsProvider,
-      ObjectMapper objectMapper) {
+    Cache cacheView,
+    AccountCredentialsProvider accountCredentialsProvider,
+    ObjectMapper objectMapper) {
     this.cacheView = cacheView;
     this.accountCredentialsProvider = accountCredentialsProvider;
     this.objectMapper = objectMapper;
@@ -59,11 +61,11 @@ public class YandexInstanceProvider implements InstanceProvider<YandexCloudInsta
     if (!(credentials instanceof YandexCloudCredentials)) {
       return null;
     }
-    String key = Keys.getInstanceKey(id, ((YandexCloudCredentials) credentials).getFolder(), "*");
+    String key = Keys.getInstanceKey(account, id, ((YandexCloudCredentials) credentials).getFolder(), "*");
     return getInstanceCacheData(Collections.singleton(key)).stream()
-        .map(this::instanceFromCacheData)
-        .findFirst()
-        .orElse(null);
+      .map(this::instanceFromCacheData)
+      .findFirst()
+      .orElse(null);
   }
 
   /**
@@ -72,17 +74,12 @@ public class YandexInstanceProvider implements InstanceProvider<YandexCloudInsta
    */
   List<YandexCloudInstance> getInstances(Collection<String> instanceKeys) {
     return getInstanceCacheData(instanceKeys).stream()
-        .map(this::instanceFromCacheData)
-        .collect(Collectors.toList());
+      .map(this::instanceFromCacheData)
+      .collect(Collectors.toList());
   }
 
   Collection<CacheData> getInstanceCacheData(Collection<String> keys) {
-    return cacheView.getAll(
-        Keys.Namespace.INSTANCES.getNs(), keys
-        //      ,
-        //      RelationshipCacheFilter.include(Keys.Namespace.LOAD_BALANCERS.getNs(),
-        // Keys.Namespace.SERVER_GROUPS.getNs(), Keys.Namespace.CLUSTERS.getNs())
-        );
+    return cacheView.getAll(Keys.Namespace.INSTANCES.getNs(), keys);
   }
 
   @Override
@@ -97,53 +94,18 @@ public class YandexInstanceProvider implements InstanceProvider<YandexCloudInsta
 
     if (instance != null) {
       return ((YandexCloudCredentials) accountCredentials)
-          .instanceService()
-          .getSerialPortOutput(
-              InstanceServiceOuterClass.GetInstanceSerialPortOutputRequest.newBuilder()
-                  .setInstanceId(instance.getId())
-                  .build())
-          .getContents();
+        .instanceService()
+        .getSerialPortOutput(
+          InstanceServiceOuterClass.GetInstanceSerialPortOutputRequest.newBuilder()
+            .setInstanceId(instance.getId())
+            .build())
+        .getContents();
     }
 
     return null;
   }
 
   public YandexCloudInstance instanceFromCacheData(CacheData cacheData) {
-    final YandexCloudInstance instance =
-        objectMapper.convertValue(cacheData.getAttributes(), YandexCloudInstance.class);
-
-    //    Collection<String> loadBalancerKeys =
-    // cacheData.getRelationships().get(Keys.Namespace.LOAD_BALANCERS.getNs());
-    //    if (loadBalancerKeys != null) {
-    //      cacheView.getAll(Keys.Namespace.LOAD_BALANCERS.getNs(), loadBalancerKeys).stream()
-    //        .map(loadBalancerCacheData -> {
-    //          ((Map)loadBalancerCacheData.getAttributes().getOrDefault("healths",
-    // Collections.emptyMap())).get("instanceName").equals(instance.getName())
-    //        }
-    //    })
-
-    //    cacheView.getAll(Keys.Namespace.LOAD_BALANCERS.getNs(),
-    // loadBalancerKeys).forEach((loadBalancerCacheData) -> {
-    //        Iterator<YandexLoadBalancerHealth> healths = (Iterator)
-    // loadBalancerCacheData.getAttributes().get("healths");
-    //        List<YandexLoadBalancerHealth> foundHealths =
-    // StreamSupport.stream(Spliterators.spliteratorUnknownSize(healths, Spliterator.NONNULL),
-    // false)
-    //          .filter(o -> o.getInstanceName().equals(instance.getName()))
-    //          .map(health -> objectMapper.convertValue(health, YandexLoadBalancerHealth.class))
-    //          .collect(Collectors.toList());
-    //
-    //        if (!foundHealths.isEmpty()) {
-    //          instance.loadBalancerHealths.addAll(foundHealths);
-    //        }
-    //      }
-
-    //    def serverGroup = GCEUtil.getLocalName(cacheData.attributes.metadata?.items?.find { it.key
-    // == "created-by" }?.value)
-    //    if (serverGroup) {
-    //      instance.serverGroup = serverGroup
-    //    }
-
-    return instance;
+    return objectMapper.convertValue(cacheData.getAttributes(), YandexCloudInstance.class);
   }
 }

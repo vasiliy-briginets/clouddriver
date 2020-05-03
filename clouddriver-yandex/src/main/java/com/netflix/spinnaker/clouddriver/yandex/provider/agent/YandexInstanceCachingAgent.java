@@ -16,11 +16,6 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.provider.agent;
 
-import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE;
-import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.INFORMATIVE;
-import static yandex.cloud.api.compute.v1.InstanceOuterClass.Instance;
-import static yandex.cloud.api.compute.v1.InstanceServiceOuterClass.ListInstancesRequest;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Strings;
 import com.netflix.spinnaker.cats.agent.AgentDataType;
@@ -30,22 +25,31 @@ import com.netflix.spinnaker.cats.cache.CacheData;
 import com.netflix.spinnaker.cats.cache.DefaultCacheData;
 import com.netflix.spinnaker.cats.provider.ProviderCache;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudInstance;
+import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudLoadBalancer;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
+import lombok.Getter;
+
 import java.util.*;
 import java.util.stream.Collectors;
-import lombok.Getter;
+
+import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE;
+import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.INFORMATIVE;
+import static com.netflix.spinnaker.clouddriver.yandex.provider.Keys.Namespace.*;
+import static java.util.Collections.*;
+import static yandex.cloud.api.compute.v1.InstanceOuterClass.Instance;
+import static yandex.cloud.api.compute.v1.InstanceServiceOuterClass.ListInstancesRequest;
 
 @Getter
 public class YandexInstanceCachingAgent extends AbstractYandexCachingAgent {
   private String agentType =
-      getAccountName() + "/" + YandexInstanceCachingAgent.class.getSimpleName();
+    getAccountName() + "/" + YandexInstanceCachingAgent.class.getSimpleName();
   private Set<AgentDataType> providedDataTypes =
-      new HashSet<>(
-          Arrays.asList(
-              AUTHORITATIVE.forType(Keys.Namespace.INSTANCES.getNs()),
-              INFORMATIVE.forType(Keys.Namespace.SERVER_GROUPS.getNs()),
-              INFORMATIVE.forType(Keys.Namespace.CLUSTERS.getNs())));
+    new HashSet<>(
+      Arrays.asList(
+        AUTHORITATIVE.forType(INSTANCES.getNs()),
+        INFORMATIVE.forType(CLUSTERS.getNs()),
+        INFORMATIVE.forType(LOAD_BALANCERS.getNs())));
 
   public YandexInstanceCachingAgent(YandexCloudCredentials credentials, ObjectMapper objectMapper) {
     super(credentials, objectMapper);
@@ -54,37 +58,55 @@ public class YandexInstanceCachingAgent extends AbstractYandexCachingAgent {
   @Override
   public CacheResult loadData(ProviderCache providerCache) {
     ListInstancesRequest request =
-        ListInstancesRequest.newBuilder().setFolderId(getFolder()).build();
+      ListInstancesRequest.newBuilder().setFolderId(getFolder()).build();
     List<Instance> instancesList =
-        getCredentials().instanceService().list(request).getInstancesList();
+      getCredentials().instanceService().list(request).getInstancesList();
 
     Collection<CacheData> cacheData =
-        instancesList.stream()
-            .map(YandexCloudInstance::createFromProto)
-            .map(this::buildCacheResults)
-            .collect(Collectors.toList());
+      instancesList.stream()
+        .map(YandexCloudInstance::createFromProto)
+        .peek(instance -> linkWithLoadBalancers(instance, providerCache))
+        .map(this::buildCacheResults)
+        .collect(Collectors.toList());
 
-    return new DefaultCacheResult(
-        Collections.singletonMap(Keys.Namespace.INSTANCES.getNs(), cacheData));
+    return new DefaultCacheResult(singletonMap(INSTANCES.getNs(), cacheData));
+  }
+
+  private void linkWithLoadBalancers(YandexCloudInstance instance, ProviderCache providerCache) {
+    Collection<String> identifiers = providerCache.filterIdentifiers(
+      LOAD_BALANCERS.getNs(),
+      Keys.getLoadBalancerKey("*", "*", "*", "*")
+    );
+
+    providerCache.getAll(LOAD_BALANCERS.getNs(), identifiers).stream()
+      .map(cacheData -> getObjectMapper().convertValue(cacheData, YandexCloudLoadBalancer.class))
+      .forEach(balancer -> {
+        balancer.getHealths().values().stream()
+          .flatMap(Collection::stream)
+          .filter(health -> instance.getAddressesInSubnets()
+            .getOrDefault(health.getSubnetId(), emptyList())
+            .contains(health.getAddress()))
+          .forEach(health -> instance.getLoadBalancerHealths().add(health));
+      });
   }
 
   private CacheData buildCacheResults(YandexCloudInstance instance) {
     String defaultName =
-        Strings.isNullOrEmpty(instance.getName()) ? instance.getId() : instance.getName();
+      Strings.isNullOrEmpty(instance.getName()) ? instance.getId() : instance.getName();
     String applicationName =
-        instance.getLabels().getOrDefault("spinnaker-application", defaultName);
+      instance.getLabels().getOrDefault("spinnaker-application", defaultName);
     String clusterKey =
-        Keys.getClusterKey(
-            getAccountName(),
-            applicationName,
-            instance.getLabels().getOrDefault("spinnaker-cluster", defaultName));
-    String instanceKey = Keys.getInstanceKey(instance.getId(), getFolder(), instance.getName());
+      Keys.getClusterKey(
+        getAccountName(),
+        applicationName,
+        instance.getLabels().getOrDefault("spinnaker-cluster", defaultName));
+    String instanceKey = Keys.getInstanceKey(getAccountName(), instance.getId(), getFolder(), instance.getName());
     Map<String, Object> attributes = getObjectMapper().convertValue(instance, MAP_TYPE_REFERENCE);
     Map<String, Collection<String>> relationships = new HashMap<>();
-    relationships.put(Keys.Namespace.CLUSTERS.getNs(), Collections.singletonList(clusterKey));
+    relationships.put(CLUSTERS.getNs(), singletonList(clusterKey));
     relationships.put(
-        Keys.Namespace.APPLICATIONS.getNs(),
-        Collections.singletonList(Keys.getApplicationKey(applicationName)));
+      APPLICATIONS.getNs(),
+      singletonList(Keys.getApplicationKey(applicationName)));
     return new DefaultCacheData(instanceKey, attributes, relationships);
   }
 }

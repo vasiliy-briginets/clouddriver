@@ -19,20 +19,26 @@ package com.netflix.spinnaker.clouddriver.yandex.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.netflix.spinnaker.clouddriver.model.ServerGroup;
 import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
-import java.time.Duration;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.time.Duration;
+import java.util.*;
+
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toMap;
 
 @Data
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class YandexCloudServerGroup implements ServerGroup {
+  // We store information about load balancers where server group attached to in instanceTemplate.metadata.
+  // Format is 'lb-name1=hc-spec;lb-name2=hc-spec;...'
+  // Format hc-spec is 'protocol,port,path,interval,timeout,unhealthyThreshold,healthyThreshold'
+  public static final String LOAD_BALANCERS_SPECS = "load-balancer-names";
+
   private String id;
   private String folder;
   private String name;
@@ -66,12 +72,28 @@ public class YandexCloudServerGroup implements ServerGroup {
 
   @Override
   public Set<String> getLoadBalancers() {
-    return loadBalancerIntegration == null
-        ? Collections.emptySet()
-        : loadBalancerIntegration.getBalancers().stream()
-            .map(YandexCloudLoadBalancer::getId)
-            .collect(Collectors.toSet());
+    return getLoadBalancersWithHealthChecks().keySet();
   }
+
+  public Map<String, HealthCheckSpec> getLoadBalancersWithHealthChecks() {
+    if (instanceTemplate.metadata == null) {
+      return Collections.emptyMap();
+    }
+    if (!instanceTemplate.metadata.containsKey(LOAD_BALANCERS_SPECS)) {
+      return Collections.emptyMap();
+    }
+    return Arrays.stream(instanceTemplate.metadata.get(LOAD_BALANCERS_SPECS).split(";"))
+      .map(part -> part.split("="))
+      .filter(lbParts -> lbParts.length == 2)
+      .collect(toMap(lbParts -> lbParts[0], lbParts -> HealthCheckSpec.deserializeFromMetadataValue(lbParts[1])));
+  }
+
+  public static String serializeLoadBalancersWithHealthChecks(Map<String, HealthCheckSpec> balancers) {
+    return balancers.keySet().stream()
+      .map(balancer -> balancer + "=" + balancers.get(balancer).serializeForMetadataValue())
+      .collect(joining(";"));
+  }
+
 
   public enum Status {
     STATUS_UNSPECIFIED,
@@ -272,10 +294,53 @@ public class YandexCloudServerGroup implements ServerGroup {
       TCP,
       HTTP
     }
+
+    String serializeForMetadataValue() {
+      return type.name().toLowerCase() + "," +
+        port + "," +
+        path + "," +
+        interval.getSeconds() + "," +
+        timeout.getSeconds() + "," +
+        unhealthyThreshold + "," +
+        healthyThreshold;
+    }
+
+    static HealthCheckSpec deserializeFromMetadataValue(String value) {
+      String[] parts = value.split(",");
+      if (parts.length != 7) {
+        throw new IllegalStateException("Wrong format of health-check stored in metadata");
+      }
+      HealthCheckSpec healthCheckSpec = new HealthCheckSpec();
+      healthCheckSpec.setType(Type.valueOf(parts[0].toUpperCase()));
+      healthCheckSpec.setPort(Integer.parseInt(parts[1]));
+      healthCheckSpec.setPath(parts[2]);
+      healthCheckSpec.setInterval(Duration.ofSeconds(Long.parseLong(parts[3])));
+      healthCheckSpec.setTimeout(Duration.ofSeconds(Long.parseLong(parts[4])));
+      healthCheckSpec.setUnhealthyThreshold(Long.parseLong(parts[5]));
+      healthCheckSpec.setHealthyThreshold(Long.parseLong(parts[6]));
+      return healthCheckSpec;
+    }
   }
 
   @Data
+  @Builder(toBuilder = true)
   public static class InstanceTemplate {
+    public InstanceTemplate() {
+    }
+
+    public InstanceTemplate(String description, Map<String, String> labels, String platformId, ResourcesSpec resourcesSpec, Map<String, String> metadata, AttachedDiskSpec bootDiskSpec, List<AttachedDiskSpec> secondaryDiskSpecs, List<NetworkInterfaceSpec> networkInterfaceSpecs, SchedulingPolicy schedulingPolicy, String serviceAccountId) {
+      this.description = description;
+      this.labels = labels;
+      this.platformId = platformId;
+      this.resourcesSpec = resourcesSpec;
+      this.metadata = metadata;
+      this.bootDiskSpec = bootDiskSpec;
+      this.secondaryDiskSpecs = secondaryDiskSpecs;
+      this.networkInterfaceSpecs = networkInterfaceSpecs;
+      this.schedulingPolicy = schedulingPolicy;
+      this.serviceAccountId = serviceAccountId;
+    }
+
     String description;
     Map<String, String> labels;
     String platformId;

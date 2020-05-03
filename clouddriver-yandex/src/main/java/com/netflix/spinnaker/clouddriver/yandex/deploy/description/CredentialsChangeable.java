@@ -14,15 +14,11 @@
  * limitations under the License.
  */
 
-package com.netflix.spinnaker.clouddriver.yandex;
+package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import com.netflix.spinnaker.clouddriver.security.resources.CredentialsNameable;
+import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
 
-@Target(ElementType.TYPE)
-@Retention(RetentionPolicy.RUNTIME)
-public @interface YandexCloudOperation {
-  String value();
+public interface CredentialsChangeable extends CredentialsNameable {
+  void setCredentials(YandexCloudCredentials credentials);
 }

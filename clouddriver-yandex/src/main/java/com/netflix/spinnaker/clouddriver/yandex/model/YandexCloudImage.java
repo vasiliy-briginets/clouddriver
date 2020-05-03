@@ -23,6 +23,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import yandex.cloud.api.compute.v1.ImageOuterClass;
 
+import java.util.Map;
+
 @Data
 @Builder
 @AllArgsConstructor
@@ -30,13 +32,20 @@ import yandex.cloud.api.compute.v1.ImageOuterClass;
 public class YandexCloudImage implements Image {
   private String id;
   private String name;
+  private String description;
   private String region;
+  private Long createdAt;
+  private Map<String, String> labels;
 
   public static YandexCloudImage createFromProto(ImageOuterClass.Image image) {
     return YandexCloudImage.builder()
-        .id(image.getId())
-        .name(image.getName())
-        .region("ru-central1")
-        .build();
+      .id(image.getId())
+      .name(image.getName())
+      .description(image.getDescription())
+      .region("ru-central1")
+      .createdAt(image.getCreatedAt().getSeconds() * 1000)
+      .labels(image.getLabelsMap())
+      .build();
   }
+
 }
