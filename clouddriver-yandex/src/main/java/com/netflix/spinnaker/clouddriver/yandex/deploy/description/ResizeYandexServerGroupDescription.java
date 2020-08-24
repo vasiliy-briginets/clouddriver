@@ -21,7 +21,8 @@ import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
 import lombok.Data;
 
 @Data
-public class ResizeYandexServerGroupDescription implements CredentialsChangeable, ServerGroupNameable {
+public class ResizeYandexServerGroupDescription
+    implements CredentialsChangeable, ServerGroupNameable {
   private YandexCloudCredentials credentials;
   private String serverGroupName;
   private Capacity capacity;
@@ -31,9 +32,5 @@ public class ResizeYandexServerGroupDescription implements CredentialsChangeable
     private Integer min;
     private Integer max;
     private Integer desired;
-  }
-
-  public void setCredentials(YandexCloudCredentials credentials) {
-    this.credentials = credentials;
   }
 }

@@ -16,6 +16,11 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.provider.agent;
 
+import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE;
+import static java.util.Collections.*;
+import static yandex.cloud.api.vpc.v1.NetworkOuterClass.Network;
+import static yandex.cloud.api.vpc.v1.NetworkServiceOuterClass.ListNetworksRequest;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.spinnaker.cats.agent.AgentDataType;
 import com.netflix.spinnaker.cats.agent.CacheResult;
@@ -26,24 +31,18 @@ import com.netflix.spinnaker.cats.provider.ProviderCache;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudNetwork;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import lombok.Getter;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static com.netflix.spinnaker.cats.agent.AgentDataType.Authority.AUTHORITATIVE;
-import static java.util.Collections.*;
-import static yandex.cloud.api.vpc.v1.NetworkOuterClass.Network;
-import static yandex.cloud.api.vpc.v1.NetworkServiceOuterClass.ListNetworksRequest;
+import lombok.Getter;
 
 @Getter
 public class YandexNetworkCachingAgent extends AbstractYandexCachingAgent {
   private String agentType =
-    getAccountName() + "/" + YandexNetworkCachingAgent.class.getSimpleName();
+      getAccountName() + "/" + YandexNetworkCachingAgent.class.getSimpleName();
   private Set<AgentDataType> providedDataTypes =
-    singleton(AUTHORITATIVE.forType(Keys.Namespace.NETWORKS.getNs()));
+      singleton(AUTHORITATIVE.forType(Keys.Namespace.NETWORKS.getNs()));
 
   public YandexNetworkCachingAgent(YandexCloudCredentials credentials, ObjectMapper objectMapper) {
     super(credentials, objectMapper);
@@ -55,18 +54,21 @@ public class YandexNetworkCachingAgent extends AbstractYandexCachingAgent {
     List<Network> networkList = getCredentials().networkService().list(request).getNetworksList();
 
     Collection<CacheData> cacheData =
-      networkList.stream()
-        .map(
-          network ->
-            new DefaultCacheData(
-              Keys.getNetworkKey(
-                getAccountName(), network.getId(), network.getFolderId(), network.getName()),
-              getObjectMapper()
-                .convertValue(
-                  YandexCloudNetwork.createFromProto(network, getAccountName()),
-                  MAP_TYPE_REFERENCE),
-              emptyMap()))
-        .collect(Collectors.toList());
+        networkList.stream()
+            .map(
+                network ->
+                    new DefaultCacheData(
+                        Keys.getNetworkKey(
+                            getAccountName(),
+                            network.getId(),
+                            network.getFolderId(),
+                            network.getName()),
+                        getObjectMapper()
+                            .convertValue(
+                                YandexCloudNetwork.createFromProto(network, getAccountName()),
+                                MAP_TYPE_REFERENCE),
+                        emptyMap()))
+            .collect(Collectors.toList());
 
     return new DefaultCacheResult(singletonMap(Keys.Namespace.NETWORKS.getNs(), cacheData));
   }

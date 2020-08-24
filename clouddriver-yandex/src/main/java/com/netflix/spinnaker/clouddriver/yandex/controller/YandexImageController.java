@@ -16,6 +16,9 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.controller;
 
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Strings;
 import com.netflix.spinnaker.cats.cache.Cache;
@@ -25,6 +28,10 @@ import com.netflix.spinnaker.cats.mem.InMemoryCache;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudImage;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
 import groovy.util.logging.Slf4j;
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import javax.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,14 +39,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import javax.servlet.http.HttpServletRequest;
-import java.util.*;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toMap;
 
 @Slf4j
 @RestController
@@ -56,27 +55,37 @@ public class YandexImageController {
 
   @RequestMapping(value = "/find", method = RequestMethod.GET)
   public List<YandexImage> list(
-    @RequestParam(required = false) String q,
-    @RequestParam(required = false) String account,
-    HttpServletRequest request) {
+      @RequestParam(required = false) String q,
+      @RequestParam(required = false) String account,
+      HttpServletRequest request) {
     return getImageCacheData(account).stream()
-      .map(this::convertToYandexImage)
-      .filter(getQueryFilter(q))
-      .filter(getTagFilter(request))
-      .sorted(Comparator.comparing(YandexImage::getImageName))
-      .collect(toList());
+        .map(this::convertToYandexImage)
+        .filter(getQueryFilter(q))
+        .filter(getTagFilter(request))
+        .sorted(Comparator.comparing(YandexImage::getImageName))
+        .collect(toList());
   }
 
   private Collection<CacheData> getImageCacheData(String account) {
-    String imageKey = Keys.getImageKey(Strings.isNullOrEmpty(account) ? "*" : account, "*", "*", "*");
-    Collection<String> identifiers = cacheView.filterIdentifiers(Keys.Namespace.IMAGES.getNs(), imageKey);
-    return cacheView.getAll(Keys.Namespace.IMAGES.getNs(), identifiers, RelationshipCacheFilter.none());
+    String imageKey =
+        Keys.getImageKey(Strings.isNullOrEmpty(account) ? "*" : account, "*", "*", "*");
+    Collection<String> identifiers =
+        cacheView.filterIdentifiers(Keys.Namespace.IMAGES.getNs(), imageKey);
+    return cacheView.getAll(
+        Keys.Namespace.IMAGES.getNs(), identifiers, RelationshipCacheFilter.none());
   }
 
   private YandexImage convertToYandexImage(CacheData cacheData) {
-    YandexCloudImage image = objectMapper.convertValue(cacheData.getAttributes(), YandexCloudImage.class);
+    YandexCloudImage image =
+        objectMapper.convertValue(cacheData.getAttributes(), YandexCloudImage.class);
     String imageAccount = Keys.parse(cacheData.getId()).get("account");
-    return new YandexImage(imageAccount, image.getId(), image.getName(), image.getRegion(), image.getCreatedAt(), image.getLabels());
+    return new YandexImage(
+        imageAccount,
+        image.getId(),
+        image.getName(),
+        image.getRegion(),
+        image.getCreatedAt(),
+        image.getLabels());
   }
 
   private Predicate<YandexImage> getQueryFilter(String q) {
@@ -102,22 +111,23 @@ public class YandexImageController {
 
   private static boolean matchesTagFilters(YandexImage image, Map<String, String> tagFilters) {
     Map<String, String> tags = image.getTags();
-    return tagFilters.keySet().stream().allMatch(
-      tag -> tags.containsKey(tag.toLowerCase()) && tags.get(tag.toLowerCase()).equalsIgnoreCase(tagFilters.get(tag))
-    );
+    return tagFilters.keySet().stream()
+        .allMatch(
+            tag ->
+                tags.containsKey(tag.toLowerCase())
+                    && tags.get(tag.toLowerCase()).equalsIgnoreCase(tagFilters.get(tag)));
   }
 
   private static Map<String, String> extractTagFilters(HttpServletRequest httpServletRequest) {
     return Collections.list(httpServletRequest.getParameterNames()).stream()
-      .filter(Objects::nonNull)
-      .filter(parameter -> parameter.toLowerCase().startsWith("tag:"))
-      .collect(toMap(
-        tagParameter -> tagParameter.replaceAll("tag:", "").toLowerCase(),
-        httpServletRequest::getParameter,
-        (a, b) -> b
-      ));
+        .filter(Objects::nonNull)
+        .filter(parameter -> parameter.toLowerCase().startsWith("tag:"))
+        .collect(
+            toMap(
+                tagParameter -> tagParameter.replaceAll("tag:", "").toLowerCase(),
+                httpServletRequest::getParameter,
+                (a, b) -> b));
   }
-
 
   @Data
   @AllArgsConstructor

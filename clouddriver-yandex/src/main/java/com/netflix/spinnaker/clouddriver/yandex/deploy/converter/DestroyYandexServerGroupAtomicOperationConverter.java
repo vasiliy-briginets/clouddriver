@@ -21,14 +21,14 @@ import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCreden
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.DestroyYandexServerGroupDescription;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.DestroyYandexServerGroupAtomicOperation;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @YandexOperation(AtomicOperations.DESTROY_SERVER_GROUP)
 @Component
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class DestroyYandexServerGroupAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+public class DestroyYandexServerGroupAtomicOperationConverter
+    extends AbstractAtomicOperationsCredentialsSupport {
   @Override
   public DestroyYandexServerGroupAtomicOperation convertOperation(Map input) {
     return new DestroyYandexServerGroupAtomicOperation(convertDescription(input));
@@ -36,6 +36,7 @@ public class DestroyYandexServerGroupAtomicOperationConverter extends AbstractAt
 
   @Override
   public DestroyYandexServerGroupDescription convertDescription(Map input) {
-    return ConverterHelper.convertDescription(input, this, DestroyYandexServerGroupDescription.class);
+    return ConverterHelper.convertDescription(
+        input, this, DestroyYandexServerGroupDescription.class);
   }
 }

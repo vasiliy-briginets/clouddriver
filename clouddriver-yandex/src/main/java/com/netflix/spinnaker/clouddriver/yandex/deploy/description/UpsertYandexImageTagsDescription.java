@@ -18,9 +18,8 @@ package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 
 import com.netflix.spinnaker.clouddriver.security.config.SecurityConfig;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import lombok.Data;
-
 import java.util.Map;
+import lombok.Data;
 
 @Data
 public class UpsertYandexImageTagsDescription implements CredentialsChangeable {
@@ -29,11 +28,10 @@ public class UpsertYandexImageTagsDescription implements CredentialsChangeable {
   private Map<String, String> tags;
 
   @Override
-  public boolean requiresAuthentication(SecurityConfig.OperationsSecurityConfigurationProperties opsSecurityConfigProps) {
-    return !opsSecurityConfigProps.getAllowUnauthenticatedImageTaggingInAccounts().contains(getAccount());
-  }
-
-  public void setCredentials(YandexCloudCredentials credentials) {
-    this.credentials = credentials;
+  public boolean requiresAuthentication(
+      SecurityConfig.OperationsSecurityConfigurationProperties opsSecurityConfigProps) {
+    return !opsSecurityConfigProps
+        .getAllowUnauthenticatedImageTaggingInAccounts()
+        .contains(getAccount());
   }
 }

@@ -17,9 +17,8 @@
 package com.netflix.spinnaker.clouddriver.yandex;
 
 import com.netflix.spinnaker.clouddriver.core.CloudProvider;
-import org.springframework.stereotype.Component;
-
 import java.lang.annotation.Annotation;
+import org.springframework.stereotype.Component;
 
 @Component
 public class YandexCloudProvider implements CloudProvider {

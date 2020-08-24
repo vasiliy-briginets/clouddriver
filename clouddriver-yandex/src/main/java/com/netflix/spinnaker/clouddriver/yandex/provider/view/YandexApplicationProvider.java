@@ -16,6 +16,11 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.provider.view;
 
+import static com.netflix.spinnaker.clouddriver.yandex.provider.Keys.Namespace;
+import static com.netflix.spinnaker.clouddriver.yandex.provider.Keys.getApplicationKey;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.netflix.spinnaker.cats.cache.Cache;
 import com.netflix.spinnaker.cats.cache.CacheData;
@@ -23,15 +28,9 @@ import com.netflix.spinnaker.cats.cache.RelationshipCacheFilter;
 import com.netflix.spinnaker.clouddriver.model.ApplicationProvider;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexApplication;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
+import java.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import java.util.*;
-
-import static com.netflix.spinnaker.clouddriver.yandex.provider.Keys.Namespace;
-import static com.netflix.spinnaker.clouddriver.yandex.provider.Keys.getApplicationKey;
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
 
 @Component
 final class YandexApplicationProvider implements ApplicationProvider {
@@ -47,23 +46,26 @@ final class YandexApplicationProvider implements ApplicationProvider {
   @Override
   public Set<YandexApplication> getApplications(boolean expand) {
     String applicationsNs = Namespace.APPLICATIONS.getNs();
-    Collection<String> identifiers = cacheView
-      .filterIdentifiers(applicationsNs, getApplicationKey("*"));
-    RelationshipCacheFilter cacheFilter = expand ?
-      RelationshipCacheFilter.include(Namespace.CLUSTERS.getNs(), Namespace.INSTANCES.getNs()) :
-      RelationshipCacheFilter.none();
+    Collection<String> identifiers =
+        cacheView.filterIdentifiers(applicationsNs, getApplicationKey("*"));
+    RelationshipCacheFilter cacheFilter =
+        expand
+            ? RelationshipCacheFilter.include(
+                Namespace.CLUSTERS.getNs(), Namespace.INSTANCES.getNs())
+            : RelationshipCacheFilter.none();
     return cacheView.getAll(applicationsNs, identifiers, cacheFilter).stream()
-      .map(this::applicationFromCacheData)
-      .collect(toSet());
+        .map(this::applicationFromCacheData)
+        .collect(toSet());
   }
 
   @Override
   public YandexApplication getApplication(String name) {
-    CacheData cacheData = cacheView.get(
-      Namespace.APPLICATIONS.getNs(),
-      getApplicationKey(name),
-      RelationshipCacheFilter.include(Namespace.CLUSTERS.getNs(), Namespace.INSTANCES.getNs())
-    );
+    CacheData cacheData =
+        cacheView.get(
+            Namespace.APPLICATIONS.getNs(),
+            getApplicationKey(name),
+            RelationshipCacheFilter.include(
+                Namespace.CLUSTERS.getNs(), Namespace.INSTANCES.getNs()));
     return applicationFromCacheData(cacheData);
   }
 
@@ -78,19 +80,19 @@ final class YandexApplicationProvider implements ApplicationProvider {
     }
 
     getRelationships(cacheData, Namespace.CLUSTERS).stream()
-      .map(Keys::parse)
-      .filter(Objects::nonNull)
-      .forEach(
-        parts ->
-          application
-            .getClusterNames()
-            .computeIfAbsent(parts.get("account"), s -> new HashSet<>())
-            .add(parts.get("name")));
+        .map(Keys::parse)
+        .filter(Objects::nonNull)
+        .forEach(
+            parts ->
+                application
+                    .getClusterNames()
+                    .computeIfAbsent(parts.get("account"), s -> new HashSet<>())
+                    .add(parts.get("name")));
 
     List<Map<String, String>> instances =
-      getRelationships(cacheData, Namespace.INSTANCES).stream()
-        .map(Keys::parse)
-        .collect(toList());
+        getRelationships(cacheData, Namespace.INSTANCES).stream()
+            .map(Keys::parse)
+            .collect(toList());
     application.setInstances(instances);
 
     return application;

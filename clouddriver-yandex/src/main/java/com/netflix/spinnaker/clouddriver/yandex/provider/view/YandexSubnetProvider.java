@@ -23,21 +23,19 @@ import com.netflix.spinnaker.clouddriver.model.SubnetProvider;
 import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudSubnet;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
-import lombok.Getter;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
 import java.util.Collection;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.Getter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 @Component
 public class YandexSubnetProvider implements SubnetProvider<YandexCloudSubnet> {
   private final Cache cacheView;
   private final ObjectMapper objectMapper;
 
-  @Getter
-  private final String cloudProvider = YandexCloudProvider.ID;
+  @Getter private final String cloudProvider = YandexCloudProvider.ID;
 
   @Autowired
   public YandexSubnetProvider(Cache cacheView, ObjectMapper objectMapper) {
@@ -48,14 +46,14 @@ public class YandexSubnetProvider implements SubnetProvider<YandexCloudSubnet> {
   @Override
   public Set<YandexCloudSubnet> getAll() {
     return loadResults(
-      cacheView.filterIdentifiers(
-        Keys.Namespace.SUBNETS.getNs(), Keys.getSubnetKey("*", "*", "*", "*")));
+        cacheView.filterIdentifiers(
+            Keys.Namespace.SUBNETS.getNs(), Keys.getSubnetKey("*", "*", "*", "*")));
   }
 
   private Set<YandexCloudSubnet> loadResults(Collection<String> identifiers) {
     return cacheView.getAll(Keys.Namespace.SUBNETS.getNs(), identifiers).stream()
-      .map(this::fromCacheData)
-      .collect(Collectors.toSet());
+        .map(this::fromCacheData)
+        .collect(Collectors.toSet());
   }
 
   private YandexCloudSubnet fromCacheData(CacheData cacheData) {

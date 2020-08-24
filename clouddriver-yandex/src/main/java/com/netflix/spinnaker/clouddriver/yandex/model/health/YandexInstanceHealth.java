@@ -19,8 +19,10 @@ package com.netflix.spinnaker.clouddriver.yandex.model.health;
 import com.netflix.spinnaker.clouddriver.model.Health;
 import com.netflix.spinnaker.clouddriver.model.HealthState;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
 public class YandexInstanceHealth implements Health {
   private Status status;
 

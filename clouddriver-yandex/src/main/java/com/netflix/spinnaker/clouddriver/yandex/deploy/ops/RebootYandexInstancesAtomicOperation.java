@@ -16,23 +16,21 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy.ops;
 
+import static yandex.cloud.api.compute.v1.InstanceServiceOuterClass.RestartInstanceRequest;
+
 import com.netflix.spinnaker.clouddriver.data.task.Task;
 import com.netflix.spinnaker.clouddriver.data.task.TaskRepository;
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.YandexOperationPoller;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.RebootYandexInstancesDescription;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import yandex.cloud.api.operation.OperationOuterClass;
-
-import java.util.List;
-
-import static yandex.cloud.api.compute.v1.InstanceServiceOuterClass.RestartInstanceRequest;
 
 public class RebootYandexInstancesAtomicOperation implements AtomicOperation<Void> {
   private static final String BASE_PHASE = "REBOOT_INSTANCES";
 
-  @Autowired
-  private YandexOperationPoller operationPoller;
+  @Autowired private YandexOperationPoller operationPoller;
 
   private final RebootYandexInstancesDescription description;
 
@@ -43,15 +41,23 @@ public class RebootYandexInstancesAtomicOperation implements AtomicOperation<Voi
   @Override
   public Void operate(List priorOutputs) {
     Task task = TaskRepository.threadLocalTask.get();
-    task.updateStatus(BASE_PHASE, "Initializing reboot of instances (" + String.join(", ", description.getInstanceIds()) + ")...");
+    task.updateStatus(
+        BASE_PHASE,
+        "Initializing reboot of instances ("
+            + String.join(", ", description.getInstanceIds())
+            + ")...");
 
     for (String instanceId : description.getInstanceIds()) {
       task.updateStatus(BASE_PHASE, "Attempting to reset instance " + instanceId + "...");
-      RestartInstanceRequest request = RestartInstanceRequest.newBuilder().setInstanceId(instanceId).build();
-      OperationOuterClass.Operation operation = description.getCredentials().instanceService().restart(request);
+      RestartInstanceRequest request =
+          RestartInstanceRequest.newBuilder().setInstanceId(instanceId).build();
+      OperationOuterClass.Operation operation =
+          description.getCredentials().instanceService().restart(request);
       operationPoller.waitDone(description.getCredentials(), operation, BASE_PHASE);
     }
-    task.updateStatus(BASE_PHASE, "Done rebooting instances (" + String.join(", ", description.getInstanceIds()) + ").");
+    task.updateStatus(
+        BASE_PHASE,
+        "Done rebooting instances (" + String.join(", ", description.getInstanceIds()) + ").");
     return null;
   }
 }

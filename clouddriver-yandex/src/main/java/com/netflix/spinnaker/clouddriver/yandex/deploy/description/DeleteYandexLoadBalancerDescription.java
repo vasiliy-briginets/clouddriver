@@ -19,22 +19,19 @@ package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 import com.netflix.frigga.Names;
 import com.netflix.spinnaker.clouddriver.security.resources.ApplicationNameable;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import lombok.Data;
-
 import java.util.Collection;
 import java.util.Collections;
+import lombok.Data;
 
 @Data
-public class DeleteYandexLoadBalancerDescription implements CredentialsChangeable, ApplicationNameable {
+public class DeleteYandexLoadBalancerDescription
+    implements CredentialsChangeable, ApplicationNameable {
   private YandexCloudCredentials credentials;
+
   private String loadBalancerName;
 
   @Override
   public Collection<String> getApplications() {
     return Collections.singletonList(Names.parseName(loadBalancerName).getApp());
-  }
-
-  public void setCredentials(YandexCloudCredentials credentials) {
-    this.credentials = credentials;
   }
 }

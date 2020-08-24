@@ -16,18 +16,17 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy.ops;
 
+import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerServiceOuterClass.*;
+
 import com.netflix.spinnaker.clouddriver.data.task.Task;
 import com.netflix.spinnaker.clouddriver.data.task.TaskRepository;
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.YandexOperationPoller;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.DeleteYandexLoadBalancerDescription;
 import com.netflix.spinnaker.clouddriver.yandex.provider.view.YandexLoadBalancerProvider;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import yandex.cloud.api.operation.OperationOuterClass;
-
-import java.util.List;
-
-import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerServiceOuterClass.*;
 
 public class DeleteYandexLoadBalancerAtomicOperation implements AtomicOperation<Void> {
   private static final String BASE_PHASE = "DELETE_LOAD_BALANCER";
@@ -36,10 +35,8 @@ public class DeleteYandexLoadBalancerAtomicOperation implements AtomicOperation<
     return TaskRepository.threadLocalTask.get();
   }
 
-  @Autowired
-  private YandexOperationPoller operationPoller;
-  @Autowired
-  private YandexLoadBalancerProvider yandexLoadBalancerProvider;
+  @Autowired private YandexOperationPoller operationPoller;
+  @Autowired private YandexLoadBalancerProvider yandexLoadBalancerProvider;
 
   private DeleteYandexLoadBalancerDescription description;
 
@@ -51,28 +48,33 @@ public class DeleteYandexLoadBalancerAtomicOperation implements AtomicOperation<
   @Override
   public Void operate(List priorOutputs) {
     String name = description.getLoadBalancerName();
-    getTask().updateStatus(BASE_PHASE, "Initializing deletion of load balancer " + description.getLoadBalancerName() + "...");
+    getTask()
+        .updateStatus(
+            BASE_PHASE,
+            "Initializing deletion of load balancer " + description.getLoadBalancerName() + "...");
 
-    ListNetworkLoadBalancersRequest listRequest = ListNetworkLoadBalancersRequest.newBuilder()
-      .setFolderId(description.getCredentials().getFolder())
-      .setFilter("name='" + name + "'")
-      .build();
-    ListNetworkLoadBalancersResponse response = description.getCredentials().networkLoadBalancerService()
-      .list(listRequest);
+    ListNetworkLoadBalancersRequest listRequest =
+        ListNetworkLoadBalancersRequest.newBuilder()
+            .setFolderId(description.getCredentials().getFolder())
+            .setFilter("name='" + name + "'")
+            .build();
+    ListNetworkLoadBalancersResponse response =
+        description.getCredentials().networkLoadBalancerService().list(listRequest);
     if (response.getNetworkLoadBalancersCount() != 1) {
       String message = "Found none of more than one load balancer with name '" + name + "'.";
       getTask().updateStatus(BASE_PHASE, message);
       throw new IllegalStateException(message);
     }
-    DeleteNetworkLoadBalancerRequest deleteRequest = DeleteNetworkLoadBalancerRequest.newBuilder()
-      .setNetworkLoadBalancerId(response.getNetworkLoadBalancers(0).getId())
-      .build();
-    OperationOuterClass.Operation deleteOperation = description.getCredentials().networkLoadBalancerService()
-      .delete(deleteRequest);
+    DeleteNetworkLoadBalancerRequest deleteRequest =
+        DeleteNetworkLoadBalancerRequest.newBuilder()
+            .setNetworkLoadBalancerId(response.getNetworkLoadBalancers(0).getId())
+            .build();
+    OperationOuterClass.Operation deleteOperation =
+        description.getCredentials().networkLoadBalancerService().delete(deleteRequest);
     operationPoller.waitDone(description.getCredentials(), deleteOperation, BASE_PHASE);
-    getTask().updateStatus(BASE_PHASE, "Done deleting load balancer " + description.getLoadBalancerName() + ".");
+    getTask()
+        .updateStatus(
+            BASE_PHASE, "Done deleting load balancer " + description.getLoadBalancerName() + ".");
     return null;
   }
-
-
 }

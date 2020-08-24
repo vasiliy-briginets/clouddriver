@@ -16,22 +16,23 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy.ops;
 
+import static yandex.cloud.api.loadbalancer.v1.HealthCheckOuterClass.HealthCheck;
+import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerOuterClass.AttachedTargetGroup;
+import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerOuterClass.NetworkLoadBalancer;
+import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerServiceOuterClass.AttachNetworkLoadBalancerTargetGroupRequest;
+import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerServiceOuterClass.GetNetworkLoadBalancerRequest;
+
 import com.netflix.spinnaker.clouddriver.data.task.Task;
 import com.netflix.spinnaker.clouddriver.data.task.TaskRepository;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.YandexOperationPoller;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexInstanceGroupConverter;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudServerGroup;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import yandex.cloud.api.operation.OperationOuterClass;
-
+import io.grpc.StatusRuntimeException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static yandex.cloud.api.loadbalancer.v1.HealthCheckOuterClass.HealthCheck;
-import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerOuterClass.AttachedTargetGroup;
-import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerOuterClass.NetworkLoadBalancer;
-import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerServiceOuterClass.*;
+import yandex.cloud.api.operation.OperationOuterClass;
 
 public class OpsHelper {
   public static Task getTask() {
@@ -39,64 +40,83 @@ public class OpsHelper {
   }
 
   public static void enableInstanceGroup(
-    YandexOperationPoller operationPoller,
-    String phaseName,
-    YandexCloudCredentials credentials,
-    String targetGroupId,
-    Map<String, YandexCloudServerGroup.HealthCheckSpec> loadBalancersSpecs) {
+      YandexOperationPoller operationPoller,
+      String phaseName,
+      YandexCloudCredentials credentials,
+      String targetGroupId,
+      Map<String, List<YandexCloudServerGroup.HealthCheckSpec>> loadBalancersSpecs) {
     if (targetGroupId == null) {
       return;
     }
     getTask().updateStatus(phaseName, "Registering instances with network load balancers...");
     getTask().updateStatus(phaseName, "Retrieving load balancers...");
-    List<NetworkLoadBalancer> balancers = loadBalancersSpecs.keySet().stream()
-      .map(name -> resolverLoadBalancerByName(credentials, phaseName, name))
-      .collect(Collectors.toList());
+    List<NetworkLoadBalancer> balancers =
+        loadBalancersSpecs.keySet().stream()
+            .map(lbId -> resolverLoadBalancer(credentials, phaseName, lbId))
+            .collect(Collectors.toList());
 
-    balancers.forEach(balancer -> {
-      AttachNetworkLoadBalancerTargetGroupRequest request = AttachNetworkLoadBalancerTargetGroupRequest.newBuilder()
-        .setNetworkLoadBalancerId(balancer.getId())
-        .setAttachedTargetGroup(AttachedTargetGroup.newBuilder()
-          .setTargetGroupId(targetGroupId)
-          .addHealthChecks(mapHealthCheckSpec(loadBalancersSpecs.get(balancer.getName()))))
-        .build();
+    balancers.forEach(
+        balancer -> {
+          AttachedTargetGroup.Builder targetGroup =
+              AttachedTargetGroup.newBuilder().setTargetGroupId(targetGroupId);
 
-      getTask().updateStatus(phaseName, "Registering server group with load balancer " + balancer.getName() + "...");
-      OperationOuterClass.Operation operation = credentials.networkLoadBalancerService().attachTargetGroup(request);
-      operationPoller.waitDone(credentials, operation, phaseName);
-      getTask().updateStatus(phaseName, "Done registering server group with load balancer " + balancer.getName() + ".");
-    });
+          List<YandexCloudServerGroup.HealthCheckSpec> healthCheckSpecs =
+              loadBalancersSpecs.get(balancer.getId());
+          for (int idx = 0; idx < healthCheckSpecs.size(); idx++) {
+            HealthCheck healthCheck =
+                mapHealthCheckSpec(targetGroupId, idx, healthCheckSpecs.get(idx));
+            targetGroup.addHealthChecks(healthCheck);
+          }
 
+          AttachNetworkLoadBalancerTargetGroupRequest request =
+              AttachNetworkLoadBalancerTargetGroupRequest.newBuilder()
+                  .setNetworkLoadBalancerId(balancer.getId())
+                  .setAttachedTargetGroup(targetGroup)
+                  .build();
+
+          getTask()
+              .updateStatus(
+                  phaseName,
+                  "Registering server group with load balancer " + balancer.getName() + "...");
+          OperationOuterClass.Operation operation =
+              credentials.networkLoadBalancerService().attachTargetGroup(request);
+          operationPoller.waitDone(credentials, operation, phaseName);
+          getTask()
+              .updateStatus(
+                  phaseName,
+                  "Done registering server group with load balancer " + balancer.getName() + ".");
+        });
   }
 
-  private static HealthCheck mapHealthCheckSpec(YandexCloudServerGroup.HealthCheckSpec hc) {
+  private static HealthCheck mapHealthCheckSpec(
+      String targetGroupId, int index, YandexCloudServerGroup.HealthCheckSpec hc) {
     HealthCheck.Builder builder = HealthCheck.newBuilder();
     if (hc.getType() == YandexCloudServerGroup.HealthCheckSpec.Type.HTTP) {
-      builder.setHttpOptions(HealthCheck.HttpOptions.newBuilder()
-        .setPort(hc.getPort())
-        .setPath(hc.getPath()));
+      builder.setHttpOptions(
+          HealthCheck.HttpOptions.newBuilder().setPort(hc.getPort()).setPath(hc.getPath()));
     } else {
       builder.setTcpOptions(HealthCheck.TcpOptions.newBuilder().setPort(hc.getPort()));
     }
     return builder
-      .setInterval(YandexInstanceGroupConverter.mapDuration(hc.getInterval()))
-      .setTimeout(YandexInstanceGroupConverter.mapDuration(hc.getTimeout()))
-      .setUnhealthyThreshold(hc.getUnhealthyThreshold())
-      .setHealthyThreshold(hc.getHealthyThreshold())
-      .build();
+        .setName(targetGroupId + "-" + index)
+        .setInterval(YandexInstanceGroupConverter.mapDuration(hc.getInterval()))
+        .setTimeout(YandexInstanceGroupConverter.mapDuration(hc.getTimeout()))
+        .setUnhealthyThreshold(hc.getUnhealthyThreshold())
+        .setHealthyThreshold(hc.getHealthyThreshold())
+        .build();
   }
 
-  private static NetworkLoadBalancer resolverLoadBalancerByName(YandexCloudCredentials credentials, String phaseName, String name) {
-    ListNetworkLoadBalancersRequest request = ListNetworkLoadBalancersRequest.newBuilder()
-      .setFolderId(credentials.getFolder())
-      .setFilter("name='" + name + "'")
-      .build();
-    ListNetworkLoadBalancersResponse response = credentials.networkLoadBalancerService().list(request);
-    if (response.getNetworkLoadBalancersCount() != 1) {
-      String message = "Found none or more than one load balancer with name '" + name + "'.";
+  private static NetworkLoadBalancer resolverLoadBalancer(
+      YandexCloudCredentials credentials, String phaseName, String id) {
+
+    try {
+      return credentials
+          .networkLoadBalancerService()
+          .get(GetNetworkLoadBalancerRequest.newBuilder().setNetworkLoadBalancerId(id).build());
+    } catch (StatusRuntimeException e) {
+      String message = "Could not resolve load balancer with id '" + id + "'.";
       getTask().updateStatus(phaseName, message);
       throw new IllegalStateException(message);
     }
-    return response.getNetworkLoadBalancers(0);
   }
 }

@@ -17,13 +17,12 @@
 package com.netflix.spinnaker.clouddriver.yandex.model;
 
 import com.netflix.spinnaker.clouddriver.model.Image;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import yandex.cloud.api.compute.v1.ImageOuterClass;
-
-import java.util.Map;
 
 @Data
 @Builder
@@ -39,13 +38,12 @@ public class YandexCloudImage implements Image {
 
   public static YandexCloudImage createFromProto(ImageOuterClass.Image image) {
     return YandexCloudImage.builder()
-      .id(image.getId())
-      .name(image.getName())
-      .description(image.getDescription())
-      .region("ru-central1")
-      .createdAt(image.getCreatedAt().getSeconds() * 1000)
-      .labels(image.getLabelsMap())
-      .build();
+        .id(image.getId())
+        .name(image.getName())
+        .description(image.getDescription())
+        .region("ru-central1")
+        .createdAt(image.getCreatedAt().getSeconds() * 1000)
+        .labels(image.getLabelsMap())
+        .build();
   }
-
 }

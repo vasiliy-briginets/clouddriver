@@ -16,19 +16,18 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy;
 
+import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupOuterClass.InstanceGroup;
+import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOuterClass.ListInstanceGroupsRequest;
+
 import com.netflix.spinnaker.clouddriver.helpers.AbstractServerGroupNameResolver;
 import com.netflix.spinnaker.clouddriver.names.NamerRegistry;
 import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
 import com.netflix.spinnaker.moniker.Namer;
-import org.apache.groovy.datetime.extensions.DateTimeExtensions;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupOuterClass.InstanceGroup;
-import static yandex.cloud.api.compute.v1.instancegroup.InstanceGroupServiceOuterClass.ListInstanceGroupsRequest;
+import org.apache.groovy.datetime.extensions.DateTimeExtensions;
 
 public class YandexServerGroupNameResolver extends AbstractServerGroupNameResolver {
   private static final String PHASE = "YANDEX_DEPLOY";
@@ -37,10 +36,11 @@ public class YandexServerGroupNameResolver extends AbstractServerGroupNameResolv
 
   public YandexServerGroupNameResolver(YandexCloudCredentials credentials) {
     this.credentials = credentials;
-    this.naming = NamerRegistry.lookup()
-      .withProvider(YandexCloudProvider.ID)
-      .withAccount(credentials.getName())
-      .withResource(InstanceGroup.class);
+    this.naming =
+        NamerRegistry.lookup()
+            .withProvider(YandexCloudProvider.ID)
+            .withAccount(credentials.getName())
+            .withResource(InstanceGroup.class);
   }
 
   @Override
@@ -60,18 +60,16 @@ public class YandexServerGroupNameResolver extends AbstractServerGroupNameResolv
 
   @Override
   public List<TakenSlot> getTakenSlots(String clusterName) {
-    ListInstanceGroupsRequest request = ListInstanceGroupsRequest.newBuilder()
-      .setFolderId(credentials.getFolder())
-      .build();
+    ListInstanceGroupsRequest request =
+        ListInstanceGroupsRequest.newBuilder().setFolderId(credentials.getFolder()).build();
     return credentials.instanceGroupService().list(request).getInstanceGroupsList().stream()
-      .map(group -> new TakenSlot(
-        group.getName(),
-        naming.deriveMoniker(group).getSequence(),
-        DateTimeExtensions.toDate(Instant.ofEpochSecond(group.getCreatedAt().getSeconds()))
-      ))
-      .collect(Collectors.toList());
-
+        .map(
+            group ->
+                new TakenSlot(
+                    group.getName(),
+                    naming.deriveMoniker(group).getSequence(),
+                    DateTimeExtensions.toDate(
+                        Instant.ofEpochSecond(group.getCreatedAt().getSeconds()))))
+        .collect(Collectors.toList());
   }
-
-
 }

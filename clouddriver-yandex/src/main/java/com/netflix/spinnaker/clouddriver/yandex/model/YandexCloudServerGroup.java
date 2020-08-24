@@ -16,27 +16,30 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.model;
 
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toMap;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.netflix.spinnaker.clouddriver.model.ServerGroup;
 import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
+import java.time.Duration;
+import java.util.*;
+import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.Duration;
-import java.util.*;
-
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toMap;
-
 @Data
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class YandexCloudServerGroup implements ServerGroup {
-  // We store information about load balancers where server group attached to in instanceTemplate.metadata.
+  // We store information about load balancers where server group attached to in
+  // instanceTemplate.metadata.
   // Format is 'lb-name1=hc-spec;lb-name2=hc-spec;...'
   // Format hc-spec is 'protocol,port,path,interval,timeout,unhealthyThreshold,healthyThreshold'
+  // Format for multiple hc-spec is 'hc-spec&hc-spec&hc-spec'
   public static final String LOAD_BALANCERS_SPECS = "load-balancer-names";
 
   private String id;
@@ -71,11 +74,16 @@ public class YandexCloudServerGroup implements ServerGroup {
   }
 
   @Override
+  @JsonIgnore
   public Set<String> getLoadBalancers() {
-    return getLoadBalancersWithHealthChecks().keySet();
+    return loadBalancerIntegration.getBalancers() == null
+        ? Collections.emptySet()
+        : loadBalancerIntegration.getBalancers().stream()
+            .map(YandexCloudLoadBalancer::getName)
+            .collect(Collectors.toSet());
   }
 
-  public Map<String, HealthCheckSpec> getLoadBalancersWithHealthChecks() {
+  public Map<String, List<HealthCheckSpec>> getLoadBalancersWithHealthChecks() {
     if (instanceTemplate.metadata == null) {
       return Collections.emptyMap();
     }
@@ -83,17 +91,29 @@ public class YandexCloudServerGroup implements ServerGroup {
       return Collections.emptyMap();
     }
     return Arrays.stream(instanceTemplate.metadata.get(LOAD_BALANCERS_SPECS).split(";"))
-      .map(part -> part.split("="))
-      .filter(lbParts -> lbParts.length == 2)
-      .collect(toMap(lbParts -> lbParts[0], lbParts -> HealthCheckSpec.deserializeFromMetadataValue(lbParts[1])));
+        .map(part -> part.split("="))
+        .filter(lbParts -> lbParts.length == 2)
+        .collect(
+            toMap(
+                lbParts -> lbParts[0],
+                lbParts ->
+                    Arrays.stream(lbParts[1].split("&"))
+                        .map(HealthCheckSpec::deserializeFromMetadataValue)
+                        .collect(Collectors.toList())));
   }
 
-  public static String serializeLoadBalancersWithHealthChecks(Map<String, HealthCheckSpec> balancers) {
+  public static String serializeLoadBalancersWithHealthChecks(
+      Map<String, List<HealthCheckSpec>> balancers) {
     return balancers.keySet().stream()
-      .map(balancer -> balancer + "=" + balancers.get(balancer).serializeForMetadataValue())
-      .collect(joining(";"));
+        .map(
+            balancer ->
+                balancer
+                    + "="
+                    + balancers.get(balancer).stream()
+                        .map(HealthCheckSpec::serializeForMetadataValue)
+                        .collect(joining("&")))
+        .collect(joining(";"));
   }
-
 
   public enum Status {
     STATUS_UNSPECIFIED,
@@ -296,13 +316,19 @@ public class YandexCloudServerGroup implements ServerGroup {
     }
 
     String serializeForMetadataValue() {
-      return type.name().toLowerCase() + "," +
-        port + "," +
-        path + "," +
-        interval.getSeconds() + "," +
-        timeout.getSeconds() + "," +
-        unhealthyThreshold + "," +
-        healthyThreshold;
+      return type.name().toLowerCase()
+          + ","
+          + port
+          + ","
+          + path
+          + ","
+          + interval.getSeconds()
+          + ","
+          + timeout.getSeconds()
+          + ","
+          + unhealthyThreshold
+          + ","
+          + healthyThreshold;
     }
 
     static HealthCheckSpec deserializeFromMetadataValue(String value) {
@@ -324,23 +350,9 @@ public class YandexCloudServerGroup implements ServerGroup {
 
   @Data
   @Builder(toBuilder = true)
+  @NoArgsConstructor
+  @AllArgsConstructor
   public static class InstanceTemplate {
-    public InstanceTemplate() {
-    }
-
-    public InstanceTemplate(String description, Map<String, String> labels, String platformId, ResourcesSpec resourcesSpec, Map<String, String> metadata, AttachedDiskSpec bootDiskSpec, List<AttachedDiskSpec> secondaryDiskSpecs, List<NetworkInterfaceSpec> networkInterfaceSpecs, SchedulingPolicy schedulingPolicy, String serviceAccountId) {
-      this.description = description;
-      this.labels = labels;
-      this.platformId = platformId;
-      this.resourcesSpec = resourcesSpec;
-      this.metadata = metadata;
-      this.bootDiskSpec = bootDiskSpec;
-      this.secondaryDiskSpecs = secondaryDiskSpecs;
-      this.networkInterfaceSpecs = networkInterfaceSpecs;
-      this.schedulingPolicy = schedulingPolicy;
-      this.serviceAccountId = serviceAccountId;
-    }
-
     String description;
     Map<String, String> labels;
     String platformId;
@@ -353,6 +365,8 @@ public class YandexCloudServerGroup implements ServerGroup {
     String serviceAccountId;
 
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class SchedulingPolicy {
       boolean preemptible;
     }

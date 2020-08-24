@@ -21,19 +21,20 @@ import com.netflix.frigga.Names;
 import com.netflix.spinnaker.clouddriver.security.resources.ApplicationNameable;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudLoadBalancer;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import lombok.Data;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import lombok.Data;
 
 @Data
-public class UpsertYandexLoadBalancerDescription implements CredentialsChangeable, ApplicationNameable {
+public class UpsertYandexLoadBalancerDescription
+    implements CredentialsChangeable, ApplicationNameable {
   private YandexCloudCredentials credentials;
+
+  private String id;
   private String name;
   private String description;
-  private YandexCloudLoadBalancer.BalancerType type;
-  private YandexCloudLoadBalancer.SessionAffinity sessionAffinity;
+  private YandexCloudLoadBalancer.BalancerType lbType;
   private List<YandexCloudLoadBalancer.Listener> listeners;
   private Map<String, String> labels;
 
@@ -41,10 +42,4 @@ public class UpsertYandexLoadBalancerDescription implements CredentialsChangeabl
   public Collection<String> getApplications() {
     return ImmutableList.of(Names.parseName(name).getApp());
   }
-
-//  //todo: удалить, если компилится и в остальных местах
-//  public void setCredentials(YandexCloudCredentials credentials) {
-//    this.credentials = credentials;
-//  }
-
 }

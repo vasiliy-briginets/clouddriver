@@ -21,19 +21,20 @@ import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCreden
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.UpsertYandexLoadBalancerDescription;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.UpsertYandexLoadBalancerAtomicOperation;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @YandexOperation(AtomicOperations.UPSERT_LOAD_BALANCER)
 @Component
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class UpsertYandexLoadBalancerAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+public class UpsertYandexLoadBalancerAtomicOperationConverter
+    extends AbstractAtomicOperationsCredentialsSupport {
   public UpsertYandexLoadBalancerAtomicOperation convertOperation(Map input) {
     return new UpsertYandexLoadBalancerAtomicOperation(convertDescription(input));
   }
 
   public UpsertYandexLoadBalancerDescription convertDescription(Map input) {
-    return ConverterHelper.convertDescription(input, this, UpsertYandexLoadBalancerDescription.class);
+    return ConverterHelper.convertDescription(
+        input, this, UpsertYandexLoadBalancerDescription.class);
   }
 }

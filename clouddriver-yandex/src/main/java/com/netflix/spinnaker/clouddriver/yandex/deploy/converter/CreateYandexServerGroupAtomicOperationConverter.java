@@ -22,17 +22,17 @@ import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCreden
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexInstanceGroupDescription;
 import groovy.util.logging.Slf4j;
+import java.util.Map;
 import lombok.NoArgsConstructor;
 import org.springframework.stereotype.Component;
-
-import java.util.Map;
 
 @YandexOperation(AtomicOperations.CREATE_SERVER_GROUP)
 @Component
 @Slf4j
 @NoArgsConstructor
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class CreateYandexServerGroupAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+public class CreateYandexServerGroupAtomicOperationConverter
+    extends AbstractAtomicOperationsCredentialsSupport {
   @Override
   public DeployAtomicOperation convertOperation(Map input) {
     return new DeployAtomicOperation(convertDescription(input));

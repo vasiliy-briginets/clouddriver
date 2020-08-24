@@ -26,15 +26,13 @@ import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudInstance;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import yandex.cloud.api.compute.v1.InstanceServiceOuterClass;
-
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class YandexInstanceProvider implements InstanceProvider<YandexCloudInstance, String> {
@@ -42,30 +40,32 @@ public class YandexInstanceProvider implements InstanceProvider<YandexCloudInsta
   private AccountCredentialsProvider accountCredentialsProvider;
   private ObjectMapper objectMapper;
 
-  @Getter
-  private final String cloudProvider = YandexCloudProvider.ID;
+  @Getter private final String cloudProvider = YandexCloudProvider.ID;
 
   @Autowired
   public YandexInstanceProvider(
-    Cache cacheView,
-    AccountCredentialsProvider accountCredentialsProvider,
-    ObjectMapper objectMapper) {
+      Cache cacheView,
+      AccountCredentialsProvider accountCredentialsProvider,
+      ObjectMapper objectMapper) {
     this.cacheView = cacheView;
     this.accountCredentialsProvider = accountCredentialsProvider;
     this.objectMapper = objectMapper;
   }
 
   @Override
-  public YandexCloudInstance getInstance(final String account, String region, String id) {
+  public YandexCloudInstance getInstance(final String account, String region, String name) {
     AccountCredentials credentials = accountCredentialsProvider.getCredentials(account);
     if (!(credentials instanceof YandexCloudCredentials)) {
       return null;
     }
-    String key = Keys.getInstanceKey(account, id, ((YandexCloudCredentials) credentials).getFolder(), "*");
-    return getInstanceCacheData(Collections.singleton(key)).stream()
-      .map(this::instanceFromCacheData)
-      .findFirst()
-      .orElse(null);
+    String pattern =
+        Keys.getInstanceKey(account, "*", ((YandexCloudCredentials) credentials).getFolder(), name);
+    String ns = Keys.Namespace.INSTANCES.getNs();
+    return cacheView.filterIdentifiers(ns, pattern).stream()
+        .findFirst()
+        .map(key -> cacheView.get(ns, key))
+        .map(this::instanceFromCacheData)
+        .orElse(null);
   }
 
   /**
@@ -74,8 +74,8 @@ public class YandexInstanceProvider implements InstanceProvider<YandexCloudInsta
    */
   List<YandexCloudInstance> getInstances(Collection<String> instanceKeys) {
     return getInstanceCacheData(instanceKeys).stream()
-      .map(this::instanceFromCacheData)
-      .collect(Collectors.toList());
+        .map(this::instanceFromCacheData)
+        .collect(Collectors.toList());
   }
 
   Collection<CacheData> getInstanceCacheData(Collection<String> keys) {
@@ -94,12 +94,12 @@ public class YandexInstanceProvider implements InstanceProvider<YandexCloudInsta
 
     if (instance != null) {
       return ((YandexCloudCredentials) accountCredentials)
-        .instanceService()
-        .getSerialPortOutput(
-          InstanceServiceOuterClass.GetInstanceSerialPortOutputRequest.newBuilder()
-            .setInstanceId(instance.getId())
-            .build())
-        .getContents();
+          .instanceService()
+          .getSerialPortOutput(
+              InstanceServiceOuterClass.GetInstanceSerialPortOutputRequest.newBuilder()
+                  .setInstanceId(instance.getId())
+                  .build())
+          .getContents();
     }
 
     return null;

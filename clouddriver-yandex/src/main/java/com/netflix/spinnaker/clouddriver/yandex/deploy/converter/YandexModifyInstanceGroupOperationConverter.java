@@ -22,14 +22,14 @@ import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCreden
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexInstanceGroupDescription;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.ModifyYandexInstanceGroupOperation;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @YandexOperation(AtomicOperations.UPDATE_LAUNCH_CONFIG)
 @Component
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class YandexModifyInstanceGroupOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+public class YandexModifyInstanceGroupOperationConverter
+    extends AbstractAtomicOperationsCredentialsSupport {
   @Override
   public AtomicOperation convertOperation(Map input) {
     return new ModifyYandexInstanceGroupOperation(convertDescription(input));

@@ -16,20 +16,20 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy.ops;
 
+import static java.util.Collections.singletonMap;
+import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerServiceOuterClass.*;
+import static yandex.cloud.api.operation.OperationOuterClass.Operation;
+
+import com.google.common.base.Strings;
 import com.netflix.spinnaker.clouddriver.data.task.Task;
 import com.netflix.spinnaker.clouddriver.data.task.TaskRepository;
 import com.netflix.spinnaker.clouddriver.orchestration.AtomicOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.YandexOperationPoller;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.UpsertYandexLoadBalancerDescription;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.YandexLoadBalancerConverter;
-import org.springframework.beans.factory.annotation.Autowired;
-
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.singletonMap;
-import static yandex.cloud.api.loadbalancer.v1.NetworkLoadBalancerServiceOuterClass.*;
-import static yandex.cloud.api.operation.OperationOuterClass.Operation;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @SuppressWarnings("rawtypes")
 public class UpsertYandexLoadBalancerAtomicOperation implements AtomicOperation<Map> {
@@ -39,8 +39,7 @@ public class UpsertYandexLoadBalancerAtomicOperation implements AtomicOperation<
     return TaskRepository.threadLocalTask.get();
   }
 
-  @Autowired
-  private YandexOperationPoller operationPoller;
+  @Autowired private YandexOperationPoller operationPoller;
   private final UpsertYandexLoadBalancerDescription description;
 
   public UpsertYandexLoadBalancerAtomicOperation(UpsertYandexLoadBalancerDescription description) {
@@ -49,41 +48,39 @@ public class UpsertYandexLoadBalancerAtomicOperation implements AtomicOperation<
 
   @Override
   public Map operate(List priorOutputs) {
-    getTask().updateStatus(BASE_PHASE, "Initializing upsert of load balancer " + description.getName() + "...");
+    getTask()
+        .updateStatus(
+            BASE_PHASE, "Initializing upsert of load balancer " + description.getName() + "...");
 
-    ListNetworkLoadBalancersRequest request = ListNetworkLoadBalancersRequest.newBuilder()
-      .setFolderId(description.getCredentials().getFolder())
-      .setFilter("name='" + description.getName() + "'")
-      .build();
-    ListNetworkLoadBalancersResponse response = description.getCredentials().networkLoadBalancerService().list(request);
-    if (response.getNetworkLoadBalancersCount() == 0) {
+    if (Strings.isNullOrEmpty(description.getId())) {
       createNewLoadBalancer();
-    } else if (response.getNetworkLoadBalancersCount() == 1) {
-      updateLoadBalancer(response.getNetworkLoadBalancers(0).getId());
     } else {
-      String message = "Found more than one load balancer with name '" + description.getName() + "'.";
-      getTask().updateStatus(BASE_PHASE, message);
-      throw new IllegalStateException(message);
+      updateLoadBalancer(description.getId());
     }
 
-
-    getTask().updateStatus(BASE_PHASE, "Done upserting load balancer " + description.getName() + ".");
-    return singletonMap("loadBalancers", singletonMap("ru-central1", singletonMap("name", description.getName())));
+    getTask()
+        .updateStatus(BASE_PHASE, "Done upserting load balancer " + description.getName() + ".");
+    return singletonMap(
+        "loadBalancers", singletonMap("ru-central1", singletonMap("name", description.getName())));
   }
 
   public void createNewLoadBalancer() {
     getTask().updateStatus(BASE_PHASE, "Creating load balancer " + description.getName() + "...");
-    CreateNetworkLoadBalancerRequest request = YandexLoadBalancerConverter.mapToCreateRequest(description);
+    CreateNetworkLoadBalancerRequest request =
+        YandexLoadBalancerConverter.mapToCreateRequest(description);
     Operation operation = description.getCredentials().networkLoadBalancerService().create(request);
     operationPoller.waitDone(description.getCredentials(), operation, BASE_PHASE);
-    getTask().updateStatus(BASE_PHASE, "Done creating load balancer " + description.getName() + ".");
+    getTask()
+        .updateStatus(BASE_PHASE, "Done creating load balancer " + description.getName() + ".");
   }
 
   public void updateLoadBalancer(String id) {
     getTask().updateStatus(BASE_PHASE, "Updating load balancer " + description.getName() + "...");
-    UpdateNetworkLoadBalancerRequest request = YandexLoadBalancerConverter.mapToUpdateRequest(id, description);
+    UpdateNetworkLoadBalancerRequest request =
+        YandexLoadBalancerConverter.mapToUpdateRequest(id, description);
     Operation operation = description.getCredentials().networkLoadBalancerService().update(request);
     operationPoller.waitDone(description.getCredentials(), operation, BASE_PHASE);
-    getTask().updateStatus(BASE_PHASE, "Done updating load balancer " + description.getName() + ".");
+    getTask()
+        .updateStatus(BASE_PHASE, "Done updating load balancer " + description.getName() + ".");
   }
 }

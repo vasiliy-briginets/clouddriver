@@ -20,9 +20,11 @@ import com.netflix.spinnaker.clouddriver.model.Health;
 import com.netflix.spinnaker.clouddriver.model.HealthState;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class YandexLoadBalancerHealth implements Health {
   private String address;
   private String subnetId;

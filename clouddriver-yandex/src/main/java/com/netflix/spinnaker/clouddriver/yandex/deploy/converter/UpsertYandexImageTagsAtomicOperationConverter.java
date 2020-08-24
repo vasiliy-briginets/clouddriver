@@ -21,14 +21,14 @@ import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCreden
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.UpsertYandexImageTagsDescription;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.UpsertYandexImageTagsAtomicOperation;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @YandexOperation(AtomicOperations.UPSERT_IMAGE_TAGS)
 @Component
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class UpsertYandexImageTagsAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+public class UpsertYandexImageTagsAtomicOperationConverter
+    extends AbstractAtomicOperationsCredentialsSupport {
   @Override
   public UpsertYandexImageTagsAtomicOperation convertOperation(Map input) {
     return new UpsertYandexImageTagsAtomicOperation(convertDescription(input));

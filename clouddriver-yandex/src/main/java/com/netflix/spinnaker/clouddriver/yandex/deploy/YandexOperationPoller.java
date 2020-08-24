@@ -16,37 +16,41 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.deploy;
 
+import static yandex.cloud.api.operation.OperationOuterClass.Operation;
+import static yandex.cloud.api.operation.OperationServiceOuterClass.GetOperationRequest;
+
 import com.netflix.spinnaker.clouddriver.data.task.Task;
 import com.netflix.spinnaker.clouddriver.data.task.TaskRepository;
 import com.netflix.spinnaker.clouddriver.helpers.OperationPoller;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
+import java.time.Duration;
 import org.springframework.stereotype.Component;
 import yandex.cloud.api.operation.OperationServiceGrpc;
-
-import java.time.Duration;
-
-import static yandex.cloud.api.operation.OperationOuterClass.Operation;
-import static yandex.cloud.api.operation.OperationServiceOuterClass.GetOperationRequest;
 
 @Component
 public class YandexOperationPoller {
   private OperationPoller operationPoller;
 
   public YandexOperationPoller() {
-    operationPoller = new OperationPoller((int) Duration.ofMinutes(10).getSeconds(), (int) Duration.ofMinutes(1).getSeconds());
+    operationPoller =
+        new OperationPoller(
+            (int) Duration.ofMinutes(10).getSeconds(), (int) Duration.ofMinutes(1).getSeconds());
   }
 
-  public void waitDone(YandexCloudCredentials credentials, Operation operation, String phase) {
+  public Operation waitDone(YandexCloudCredentials credentials, Operation operation, String phase) {
     Task task = TaskRepository.threadLocalTask.get();
     String resourceString = operation.getDescription() + " [" + operation.getId() + "]";
     task.updateStatus(phase, "Waiting on operation '" + resourceString + "'...");
-    OperationServiceGrpc.OperationServiceBlockingStub operationService = credentials.operationService();
-    operationPoller.waitForOperation(
-      () -> operationService.get(GetOperationRequest.newBuilder().setOperationId(operation.getId()).build()),
-      Operation::getDone,
-      null,
-      task,
-      resourceString,
-      phase);
+    OperationServiceGrpc.OperationServiceBlockingStub operationService =
+        credentials.operationService();
+    return operationPoller.waitForOperation(
+        () ->
+            operationService.get(
+                GetOperationRequest.newBuilder().setOperationId(operation.getId()).build()),
+        Operation::getDone,
+        null,
+        task,
+        resourceString,
+        phase);
   }
 }

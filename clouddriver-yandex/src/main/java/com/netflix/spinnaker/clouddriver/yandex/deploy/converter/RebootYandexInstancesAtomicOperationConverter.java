@@ -21,14 +21,14 @@ import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCreden
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.RebootYandexInstancesDescription;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.RebootYandexInstancesAtomicOperation;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @YandexOperation(AtomicOperations.REBOOT_INSTANCES)
 @Component
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class RebootYandexInstancesAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+public class RebootYandexInstancesAtomicOperationConverter
+    extends AbstractAtomicOperationsCredentialsSupport {
   @Override
   public RebootYandexInstancesAtomicOperation convertOperation(Map input) {
     return new RebootYandexInstancesAtomicOperation(convertDescription(input));

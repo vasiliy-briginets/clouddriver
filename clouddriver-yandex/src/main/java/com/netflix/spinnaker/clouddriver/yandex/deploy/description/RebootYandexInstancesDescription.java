@@ -18,10 +18,9 @@ package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 
 import com.netflix.spinnaker.clouddriver.security.resources.ResourcesNameable;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import lombok.Data;
-
 import java.util.Collections;
 import java.util.List;
+import lombok.Data;
 
 @Data
 public class RebootYandexInstancesDescription implements CredentialsChangeable, ResourcesNameable {
@@ -30,9 +29,5 @@ public class RebootYandexInstancesDescription implements CredentialsChangeable, 
 
   public List<String> getNames() {
     return instanceIds == null ? Collections.emptyList() : instanceIds;
-  }
-
-  public void setCredentials(YandexCloudCredentials credentials) {
-    this.credentials = credentials;
   }
 }

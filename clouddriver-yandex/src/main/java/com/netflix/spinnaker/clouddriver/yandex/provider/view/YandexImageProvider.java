@@ -23,20 +23,18 @@ import com.netflix.spinnaker.clouddriver.model.ImageProvider;
 import com.netflix.spinnaker.clouddriver.yandex.YandexCloudProvider;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudImage;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
+import java.util.Collection;
+import java.util.Optional;
 import lombok.Getter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import java.util.Collection;
-import java.util.Optional;
 
 @Component
 public class YandexImageProvider implements ImageProvider {
   private final Cache cacheView;
   private final ObjectMapper objectMapper;
 
-  @Getter
-  private final String cloudProvider = YandexCloudProvider.ID;
+  @Getter private final String cloudProvider = YandexCloudProvider.ID;
 
   @Autowired
   public YandexImageProvider(Cache cacheView, ObjectMapper objectMapper) {
@@ -47,13 +45,13 @@ public class YandexImageProvider implements ImageProvider {
   @Override
   public Optional<Image> getImageById(String imageId) {
     Collection<String> identifiers =
-      cacheView.filterIdentifiers(
-        Keys.Namespace.IMAGES.getNs(), Keys.getImageKey("*", imageId, "*", "*"));
+        cacheView.filterIdentifiers(
+            Keys.Namespace.IMAGES.getNs(), Keys.getImageKey("*", imageId, "*", "*"));
     return cacheView.getAll(Keys.Namespace.IMAGES.getNs(), identifiers).stream()
-      .map(
-        cacheData ->
-          objectMapper.convertValue(cacheData.getAttributes(), YandexCloudImage.class))
-      .map(image -> (Image) image)
-      .findFirst();
+        .map(
+            cacheData ->
+                objectMapper.convertValue(cacheData.getAttributes(), YandexCloudImage.class))
+        .map(image -> (Image) image)
+        .findFirst();
   }
 }

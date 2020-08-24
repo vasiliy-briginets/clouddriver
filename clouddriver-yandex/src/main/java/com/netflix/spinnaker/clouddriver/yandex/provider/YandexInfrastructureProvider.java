@@ -21,27 +21,26 @@ import com.netflix.spinnaker.cats.agent.AgentSchedulerAware;
 import com.netflix.spinnaker.cats.cache.Cache;
 import com.netflix.spinnaker.cats.cache.CacheData;
 import com.netflix.spinnaker.clouddriver.cache.SearchableProvider;
+import java.util.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.*;
-
 @Getter
 public class YandexInfrastructureProvider extends AgentSchedulerAware
-  implements SearchableProvider {
+    implements SearchableProvider {
   private final Collection<Agent> agents;
   private final String providerName = YandexInfrastructureProvider.class.getName();
   private final Set<String> defaultCaches =
-    new HashSet<>(
-      Arrays.asList(
-        Keys.Namespace.APPLICATIONS.getNs(),
-        Keys.Namespace.CLUSTERS.getNs(),
-        Keys.Namespace.INSTANCES.getNs(),
-        Keys.Namespace.LOAD_BALANCERS.getNs(),
-        Keys.Namespace.SERVER_GROUPS.getNs()));
+      new HashSet<>(
+          Arrays.asList(
+              Keys.Namespace.APPLICATIONS.getNs(),
+              Keys.Namespace.CLUSTERS.getNs(),
+              Keys.Namespace.INSTANCES.getNs(),
+              Keys.Namespace.LOAD_BALANCERS.getNs(),
+              Keys.Namespace.SERVER_GROUPS.getNs()));
   private final Map<String, String> urlMappingTemplates =
-    Collections.singletonMap(Keys.Namespace.CLUSTERS.getNs(), "/serverGroups/$name");
-//      (SECURITY_GROUPS.ns): '/securityGroups/$account/$provider/$name?region=$region'
+      Collections.singletonMap(Keys.Namespace.CLUSTERS.getNs(), "/serverGroups/$name");
+  //      (SECURITY_GROUPS.ns): '/securityGroups/$account/$provider/$name?region=$region'
 
   //  final Map<String, String> urlMappingTemplates = [
   //    (Keys.Namespace.SERVER_GROUPS.ns) :
@@ -51,15 +50,15 @@ public class YandexInfrastructureProvider extends AgentSchedulerAware
   // '/applications/${application.toLowerCase()}/clusters/$account/$cluster'
   //    ].asImmutable()
 
-
-//  final Map<String, String> urlMappingTemplates = [
-//    (SERVER_GROUPS.ns) : '/applications/${application.toLowerCase()}/clusters/$account/$cluster/$provider/serverGroups/$serverGroup?region=$region',
-//    (LOAD_BALANCERS.ns): '/$provider/loadBalancers/$loadBalancer',
-//    (CLUSTERS.ns)      : '/applications/${application.toLowerCase()}/clusters/$account/$cluster'
-//    ].asImmutable()
+  //  final Map<String, String> urlMappingTemplates = [
+  //    (SERVER_GROUPS.ns) :
+  // '/applications/${application.toLowerCase()}/clusters/$account/$cluster/$provider/serverGroups/$serverGroup?region=$region',
+  //    (LOAD_BALANCERS.ns): '/$provider/loadBalancers/$loadBalancer',
+  //    (CLUSTERS.ns)      : '/applications/${application.toLowerCase()}/clusters/$account/$cluster'
+  //    ].asImmutable()
 
   private final Map<SearchableResource, SearchResultHydrator> searchResultHydrators =
-    new HashMap<>();
+      new HashMap<>();
 
   public YandexInfrastructureProvider(Collection<Agent> agents) {
     this.agents = agents;
@@ -70,8 +69,8 @@ public class YandexInfrastructureProvider extends AgentSchedulerAware
 
   private void registerHydrator(Keys.Namespace ns) {
     searchResultHydrators.put(
-      new SearchableResource(ns.getNs().toLowerCase(), "yandex"),
-      new NamespaceResultHydrator(ns));
+        new SearchableResource(ns.getNs().toLowerCase(), "yandex"),
+        new NamespaceResultHydrator(ns));
   }
 
   @Override
@@ -85,17 +84,17 @@ public class YandexInfrastructureProvider extends AgentSchedulerAware
 
     @Override
     public Map<String, String> hydrateResult(
-      Cache cacheView, Map<String, String> result, String id) {
+        Cache cacheView, Map<String, String> result, String id) {
       CacheData item = cacheView.get(namespace.getNs(), id);
       if (item == null
-        || item.getRelationships() == null
-        || !item.getRelationships().containsKey(Keys.Namespace.CLUSTERS.getNs())) {
+          || item.getRelationships() == null
+          || !item.getRelationships().containsKey(Keys.Namespace.CLUSTERS.getNs())) {
         return result;
       }
 
       Map<String, String> cluster =
-        Keys.parse(
-          item.getRelationships().get(Keys.Namespace.CLUSTERS.getNs()).iterator().next());
+          Keys.parse(
+              item.getRelationships().get(Keys.Namespace.CLUSTERS.getNs()).iterator().next());
       if (cluster == null) {
         return result;
       }

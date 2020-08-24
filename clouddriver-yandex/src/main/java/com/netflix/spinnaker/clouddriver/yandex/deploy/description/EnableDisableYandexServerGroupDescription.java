@@ -19,18 +19,19 @@ package com.netflix.spinnaker.clouddriver.yandex.deploy.description;
 import com.netflix.spinnaker.clouddriver.deploy.description.EnableDisableDescriptionTrait;
 import com.netflix.spinnaker.clouddriver.security.resources.ServerGroupsNameable;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import lombok.Data;
-
 import java.util.Collection;
 import java.util.Collections;
+import lombok.Data;
 
 /**
  * "Enabling" means adding a server group to the target pool of each of its network load balancers.
- * <p>
- * "Disabling" means removing a server group from the target pool of each of its network load balancers.
+ *
+ * <p>"Disabling" means removing a server group from the target pool of each of its network load
+ * balancers.
  */
 @Data
-public class EnableDisableYandexServerGroupDescription implements CredentialsChangeable, ServerGroupsNameable, EnableDisableDescriptionTrait {
+public class EnableDisableYandexServerGroupDescription
+    implements CredentialsChangeable, ServerGroupsNameable, EnableDisableDescriptionTrait {
   private YandexCloudCredentials credentials;
   private String serverGroupName;
 
@@ -41,19 +42,13 @@ public class EnableDisableYandexServerGroupDescription implements CredentialsCha
 
   @Override
   public Integer getDesiredPercentage() {
-    throw new IllegalArgumentException("Yandex cloud provider hasn't implemented enabling/disabling by percentage yet");
+    throw new IllegalArgumentException(
+        "Yandex cloud provider hasn't implemented enabling/disabling by percentage yet");
   }
 
   @Override
   public void setDesiredPercentage(Integer percentage) {
-    throw new IllegalArgumentException("Yandex cloud provider hasn't implemented enabling/disabling by percentage yet");
-  }
-
-  public void setCredentials(YandexCloudCredentials credentials) {
-    this.credentials = credentials;
-  }
-
-  public void setServerGroupName(String serverGroupName) {
-    this.serverGroupName = serverGroupName;
+    throw new IllegalArgumentException(
+        "Yandex cloud provider hasn't implemented enabling/disabling by percentage yet");
   }
 }

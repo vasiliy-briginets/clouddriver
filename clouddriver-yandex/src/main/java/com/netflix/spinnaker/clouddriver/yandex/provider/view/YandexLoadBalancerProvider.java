@@ -16,6 +16,10 @@
 
 package com.netflix.spinnaker.clouddriver.yandex.provider.view;
 
+import static com.netflix.spinnaker.clouddriver.yandex.provider.Keys.Namespace.*;
+import static java.util.Collections.*;
+import static java.util.stream.Collectors.*;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,18 +35,12 @@ import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudLoadBalancer;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudServerGroup;
 import com.netflix.spinnaker.clouddriver.yandex.model.health.YandexLoadBalancerHealth;
 import com.netflix.spinnaker.clouddriver.yandex.provider.Keys;
+import java.util.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import java.util.*;
-
-import static com.netflix.spinnaker.clouddriver.yandex.provider.Keys.Namespace.*;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singletonMap;
-import static java.util.stream.Collectors.*;
 
 @Component
 @Data
@@ -52,9 +50,7 @@ public class YandexLoadBalancerProvider implements LoadBalancerProvider<YandexCl
   private ObjectMapper objectMapper;
 
   @Autowired
-  public YandexLoadBalancerProvider(
-    Cache cacheView,
-    ObjectMapper objectMapper) {
+  public YandexLoadBalancerProvider(Cache cacheView, ObjectMapper objectMapper) {
     this.cacheView = cacheView;
     this.objectMapper = objectMapper;
   }
@@ -66,105 +62,129 @@ public class YandexLoadBalancerProvider implements LoadBalancerProvider<YandexCl
     Collection<String> identifiers = cacheView.filterIdentifiers(balancersNs, pattern);
 
     if (!Strings.isNullOrEmpty(applicationName)) {
-      Collection<CacheData> applicationServerGroups = cacheView.getAll(
-        SERVER_GROUPS.getNs(),
-        cacheView.filterIdentifiers(SERVER_GROUPS.getNs(),
-          Keys.getServerGroupKey("*", "*", "*", applicationName + "*"))
-      );
+      Collection<CacheData> applicationServerGroups =
+          cacheView.getAll(
+              SERVER_GROUPS.getNs(),
+              cacheView.filterIdentifiers(
+                  SERVER_GROUPS.getNs(),
+                  Keys.getServerGroupKey("*", "*", "*", applicationName + "*")));
       applicationServerGroups.stream()
-        .map(CacheData::getRelationships)
-        .filter(Objects::nonNull)
-        .map(relationships -> relationships.get(balancersNs))
-        .filter(Objects::nonNull)
-        .forEach(identifiers::addAll);
+          .map(CacheData::getRelationships)
+          .filter(Objects::nonNull)
+          .map(relationships -> relationships.get(balancersNs))
+          .filter(Objects::nonNull)
+          .forEach(identifiers::addAll);
     }
-    RelationshipCacheFilter cacheFilter = RelationshipCacheFilter
-      .include(SERVER_GROUPS.getNs(), INSTANCES.getNs());
+    RelationshipCacheFilter cacheFilter =
+        RelationshipCacheFilter.include(SERVER_GROUPS.getNs(), INSTANCES.getNs());
     return cacheView.getAll(balancersNs, identifiers, cacheFilter).stream()
-      .map(this::loadBalancersFromCacheData)
-      .collect(toSet());
+        .map(this::loadBalancersFromCacheData)
+        .collect(toSet());
   }
 
   private YandexCloudLoadBalancer loadBalancersFromCacheData(CacheData cacheData) {
     YandexCloudLoadBalancer loadBalancer =
-      objectMapper.convertValue(cacheData.getAttributes(), YandexCloudLoadBalancer.class);
+        objectMapper.convertValue(cacheData.getAttributes(), YandexCloudLoadBalancer.class);
 
-    Collection<String> serverGroupKeys = cacheData.getRelationships() == null ?
-      emptySet() :
-      cacheData.getRelationships().getOrDefault(SERVER_GROUPS.getNs(), emptySet());
+    Collection<String> serverGroupKeys =
+        cacheData.getRelationships() == null
+            ? emptySet()
+            : cacheData.getRelationships().getOrDefault(SERVER_GROUPS.getNs(), emptySet());
     if (serverGroupKeys.isEmpty()) {
       return loadBalancer;
     }
 
     cacheView
-      .getAll(SERVER_GROUPS.getNs(), serverGroupKeys)
-      .forEach(sgCacheData -> {
-        YandexCloudServerGroup serverGroup =
-          objectMapper.convertValue(sgCacheData.getAttributes(), YandexCloudServerGroup.class);
+        .getAll(SERVER_GROUPS.getNs(), serverGroupKeys)
+        .forEach(
+            sgCacheData -> {
+              YandexCloudServerGroup serverGroup =
+                  objectMapper.convertValue(
+                      sgCacheData.getAttributes(), YandexCloudServerGroup.class);
 
-        LoadBalancerServerGroup loadBalancerServerGroup = new LoadBalancerServerGroup();
+              LoadBalancerServerGroup loadBalancerServerGroup = new LoadBalancerServerGroup();
 
-        loadBalancerServerGroup.setCloudProvider(YandexCloudProvider.ID);
-        loadBalancerServerGroup.setName(serverGroup.getName());
-        loadBalancerServerGroup.setRegion(serverGroup.getRegion());
-        loadBalancerServerGroup.setIsDisabled(serverGroup.isDisabled());
-        loadBalancerServerGroup.setDetachedInstances(emptySet());
-        loadBalancerServerGroup.setInstances(serverGroup.getInstances().stream()
-          .map(instance -> new LoadBalancerInstance(
-            instance.getId(),
-            instance.getName(),
-            instance.getZone(),
-            singletonMap("state", loadBalancer.getHealths()
-              .get(serverGroup.getLoadBalancerIntegration().getTargetGroupId())
-              .stream()
-              .filter(health -> instance.getAddressesInSubnets().get(health.getSubnetId()).contains(health.getAddress()))
-              .findFirst()
-              .map(health -> health.getStatus().toServiceStatus())
-              .orElseGet(() -> YandexLoadBalancerHealth.Status.ServiceStatus.OutOfService))
-          ))
-          .collect(toSet()));
+              loadBalancerServerGroup.setCloudProvider(YandexCloudProvider.ID);
+              loadBalancerServerGroup.setName(serverGroup.getName());
+              loadBalancerServerGroup.setRegion(serverGroup.getRegion());
+              loadBalancerServerGroup.setIsDisabled(serverGroup.isDisabled());
+              loadBalancerServerGroup.setDetachedInstances(emptySet());
+              loadBalancerServerGroup.setInstances(
+                  serverGroup.getInstances().stream()
+                      .map(
+                          instance ->
+                              new LoadBalancerInstance(
+                                  instance.getId(),
+                                  instance.getName(),
+                                  instance.getZone(),
+                                  singletonMap(
+                                      "state",
+                                      loadBalancer.getHealths()
+                                          .getOrDefault(
+                                              serverGroup
+                                                  .getLoadBalancerIntegration()
+                                                  .getTargetGroupId(),
+                                              emptyList())
+                                          .stream()
+                                          .filter(
+                                              health ->
+                                                  instance
+                                                      .getAddressesInSubnets()
+                                                      .get(health.getSubnetId())
+                                                      .contains(health.getAddress()))
+                                          .findFirst()
+                                          .map(health -> health.getStatus().toServiceStatus())
+                                          .orElseGet(
+                                              () ->
+                                                  YandexLoadBalancerHealth.Status.ServiceStatus
+                                                      .OutOfService))))
+                      .collect(toSet()));
 
-        loadBalancer.getServerGroups().add(loadBalancerServerGroup);
-      });
+              loadBalancer.getServerGroups().add(loadBalancerServerGroup);
+            });
 
     return loadBalancer;
   }
 
   public List<YandexLoadBalancerAccountRegionSummary> list() {
     Map<String, List<YandexCloudLoadBalancer>> loadBalancerMap =
-      getApplicationLoadBalancers("").stream()
-        .collect(groupingBy(YandexCloudLoadBalancer::getName));
+        getApplicationLoadBalancers("").stream()
+            .collect(groupingBy(YandexCloudLoadBalancer::getName));
 
     return loadBalancerMap.entrySet().stream()
-      .map(e -> convertToSummary(e.getKey(), e.getValue()))
-      .collect(toList());
+        .map(e -> convertToSummary(e.getKey(), e.getValue()))
+        .collect(toList());
   }
 
-  @NotNull YandexLoadBalancerProvider.YandexLoadBalancerAccountRegionSummary convertToSummary(String key, List<YandexCloudLoadBalancer> balancers) {
+  @NotNull
+  YandexLoadBalancerProvider.YandexLoadBalancerAccountRegionSummary convertToSummary(
+      String key, List<YandexCloudLoadBalancer> balancers) {
     YandexLoadBalancerAccountRegionSummary summary = new YandexLoadBalancerAccountRegionSummary();
     summary.setName(key);
-    balancers.forEach(balancer -> {
-      YandexLoadBalancerSummary s = new YandexLoadBalancerSummary();
-      s.setId(balancer.getId());
-      s.setAccount(balancer.getAccount());
-      s.setName(balancer.getName());
-      s.setRegion(balancer.getRegion());
+    balancers.forEach(
+        balancer -> {
+          YandexLoadBalancerSummary s = new YandexLoadBalancerSummary();
+          s.setId(balancer.getId());
+          s.setAccount(balancer.getAccount());
+          s.setName(balancer.getName());
+          s.setRegion(balancer.getRegion());
 
-      summary.getMappedAccounts()
-        .computeIfAbsent(balancer.getAccount(), a -> new YandexLoadBalancerAccount())
-        .getMappedRegions()
-        .computeIfAbsent(balancer.getRegion(), a -> new YandexLoadBalancerAccountRegion())
-        .getLoadBalancers()
-        .add(s);
-    });
+          summary
+              .getMappedAccounts()
+              .computeIfAbsent(balancer.getAccount(), a -> new YandexLoadBalancerAccount())
+              .getMappedRegions()
+              .computeIfAbsent(balancer.getRegion(), a -> new YandexLoadBalancerAccountRegion())
+              .getLoadBalancers()
+              .add(s);
+        });
 
     return summary;
   }
 
   public YandexLoadBalancerAccountRegionSummary get(String name) {
     Map<String, List<YandexCloudLoadBalancer>> loadBalancerMap =
-      getApplicationLoadBalancers("").stream()
-        .collect(groupingBy(YandexCloudLoadBalancer::getName));
+        getApplicationLoadBalancers("").stream()
+            .collect(groupingBy(YandexCloudLoadBalancer::getName));
     if (!loadBalancerMap.containsKey(name)) {
       return null;
     }
@@ -172,28 +192,30 @@ public class YandexLoadBalancerProvider implements LoadBalancerProvider<YandexCl
   }
 
   public List<YandexLoadBalancerDetails> byAccountAndRegionAndName(
-    final String account, final String region, String name) {
+      final String account, final String region, String name) {
     Set<YandexCloudLoadBalancer> balancers = getApplicationLoadBalancers(name);
     return balancers.stream()
-      .filter(balancer -> balancer.getAccount().equals(account) && balancer.getRegion().equals(region))
-      .map(balancer -> new YandexLoadBalancerDetails(
-        balancer.getName(),
-        balancer.getBalancerType(),
-        balancer.getSessionAffinity().name(),
-        balancer.getCreatedTime(),
-        balancer.getListeners()
-      ))
-      .findFirst()
-      .map(Collections::singletonList)
-      .orElseGet(Collections::emptyList);
+        .filter(
+            balancer ->
+                balancer.getAccount().equals(account) && balancer.getRegion().equals(region))
+        .map(
+            balancer ->
+                new YandexLoadBalancerDetails(
+                    balancer.getName(),
+                    balancer.getBalancerType(),
+                    balancer.getSessionAffinity().name(),
+                    balancer.getCreatedTime(),
+                    balancer.getListeners()))
+        .findFirst()
+        .map(Collections::singletonList)
+        .orElseGet(Collections::emptyList);
   }
 
   @Data
   public static class YandexLoadBalancerAccountRegionSummary implements LoadBalancerProvider.Item {
     private String name;
 
-    @JsonIgnore
-    private Map<String, YandexLoadBalancerAccount> mappedAccounts = new HashMap<>();
+    @JsonIgnore private Map<String, YandexLoadBalancerAccount> mappedAccounts = new HashMap<>();
 
     @JsonProperty("accounts")
     public List<YandexLoadBalancerAccount> getByAccounts() {

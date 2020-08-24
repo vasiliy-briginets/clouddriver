@@ -23,20 +23,16 @@ import com.netflix.spinnaker.clouddriver.security.resources.ApplicationNameable;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.YandexServerGroupNameResolver;
 import com.netflix.spinnaker.clouddriver.yandex.model.YandexCloudServerGroup;
 import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
-import lombok.*;
-
 import java.util.*;
+import lombok.*;
 
 @Data
 @Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class YandexInstanceGroupDescription implements CredentialsChangeable, Cloneable, DeployDescription, ApplicationNameable {
+public class YandexInstanceGroupDescription
+    implements CredentialsChangeable, Cloneable, DeployDescription, ApplicationNameable {
   private YandexCloudCredentials credentials;
-
-  public void setCredentials(YandexCloudCredentials credentials) {
-    this.credentials = credentials;
-  }
 
   private String application;
   private String stack;
@@ -55,7 +51,10 @@ public class YandexInstanceGroupDescription implements CredentialsChangeable, Cl
   private List<YandexCloudServerGroup.HealthCheckSpec> healthCheckSpecs;
   private YandexCloudServerGroup.InstanceTemplate instanceTemplate;
   private String serviceAccountId;
-  private Map<String, YandexCloudServerGroup.HealthCheckSpec> balancers;
+  private Map<String, List<YandexCloudServerGroup.HealthCheckSpec>> balancers;
+  private Boolean enableTraffic;
+
+  private Source source = new Source();
 
   @Override
   public Collection<String> getApplications() {
@@ -71,10 +70,11 @@ public class YandexInstanceGroupDescription implements CredentialsChangeable, Cl
   }
 
   public void produceServerGroupName() {
-    YandexServerGroupNameResolver serverGroupNameResolver = new YandexServerGroupNameResolver(getCredentials());
+    YandexServerGroupNameResolver serverGroupNameResolver =
+        new YandexServerGroupNameResolver(getCredentials());
     this.setName(
-      serverGroupNameResolver.resolveNextServerGroupName(
-        getApplication(), getStack(), getFreeFormDetails(), false));
+        serverGroupNameResolver.resolveNextServerGroupName(
+            getApplication(), getStack(), getFreeFormDetails(), false));
   }
 
   public void saturateLabels() {
@@ -87,8 +87,8 @@ public class YandexInstanceGroupDescription implements CredentialsChangeable, Cl
 
     Integer sequence = Names.parseName(getName()).getSequence();
     String clusterName =
-      new YandexServerGroupNameResolver(getCredentials())
-        .combineAppStackDetail(getApplication(), getStack(), getFreeFormDetails());
+        new YandexServerGroupNameResolver(getCredentials())
+            .combineAppStackDetail(getApplication(), getStack(), getFreeFormDetails());
 
     saturateLabels(getLabels(), sequence, clusterName);
     saturateLabels(getInstanceTemplate().getLabels(), sequence, clusterName);
@@ -100,5 +100,13 @@ public class YandexInstanceGroupDescription implements CredentialsChangeable, Cl
     labels.putIfAbsent("spinnaker-moniker-cluster", clusterName);
     labels.putIfAbsent("spinnaker-moniker-stack", this.getStack());
     labels.put("spinnaker-moniker-sequence", sequence == null ? null : sequence.toString());
+  }
+
+  @Data
+  @NoArgsConstructor
+  @AllArgsConstructor(access = AccessLevel.PRIVATE)
+  public static class Source {
+    String serverGroupName;
+    Boolean useSourceCapacity;
   }
 }

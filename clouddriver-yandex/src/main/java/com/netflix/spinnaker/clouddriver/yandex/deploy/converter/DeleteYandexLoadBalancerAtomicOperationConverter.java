@@ -21,14 +21,14 @@ import com.netflix.spinnaker.clouddriver.security.AbstractAtomicOperationsCreden
 import com.netflix.spinnaker.clouddriver.yandex.YandexOperation;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.description.DeleteYandexLoadBalancerDescription;
 import com.netflix.spinnaker.clouddriver.yandex.deploy.ops.DeleteYandexLoadBalancerAtomicOperation;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
+import org.springframework.stereotype.Component;
 
 @YandexOperation(AtomicOperations.DELETE_LOAD_BALANCER)
 @Component
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class DeleteYandexLoadBalancerAtomicOperationConverter extends AbstractAtomicOperationsCredentialsSupport {
+public class DeleteYandexLoadBalancerAtomicOperationConverter
+    extends AbstractAtomicOperationsCredentialsSupport {
   @Override
   public DeleteYandexLoadBalancerAtomicOperation convertOperation(Map input) {
     return new DeleteYandexLoadBalancerAtomicOperation(convertDescription(input));
@@ -36,6 +36,7 @@ public class DeleteYandexLoadBalancerAtomicOperationConverter extends AbstractAt
 
   @Override
   public DeleteYandexLoadBalancerDescription convertDescription(Map input) {
-    return ConverterHelper.convertDescription(input, this, DeleteYandexLoadBalancerDescription.class);
+    return ConverterHelper.convertDescription(
+        input, this, DeleteYandexLoadBalancerDescription.class);
   }
 }

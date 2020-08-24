@@ -21,11 +21,9 @@ import com.netflix.spinnaker.clouddriver.yandex.security.YandexCloudCredentials;
 import lombok.Data;
 
 @Data
-public class DestroyYandexServerGroupDescription implements CredentialsChangeable, ServerGroupNameable {
+public class DestroyYandexServerGroupDescription
+    implements CredentialsChangeable, ServerGroupNameable {
   private YandexCloudCredentials credentials;
-  private String serverGroupName;
 
-  public void setCredentials(YandexCloudCredentials credentials) {
-    this.credentials = credentials;
-  }
+  private String serverGroupName;
 }
