@@ -28,7 +28,7 @@ public class UpsertYandexImageTagsDescription implements CredentialsChangeable {
   private Map<String, String> tags;
 
   @Override
-  public boolean requiresAuthentication(
+  public boolean requiresAuthorization(
       SecurityConfig.OperationsSecurityConfigurationProperties opsSecurityConfigProps) {
     return !opsSecurityConfigProps
         .getAllowUnauthenticatedImageTaggingInAccounts()
